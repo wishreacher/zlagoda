@@ -37,7 +37,7 @@ class DashboardView:
             'Продукти': ['назва', 'id продукту', 'id категорії', 'Опис'],
             'Продукти в магазині': ['UPC', 'id продукту', 'ціна', 'наявність', 'акційнний товар'],
             'Категорії': ['назва', 'номер категорії'],
-            'Працівники': ['id працівника', 'ПІБ', 'посада', 'зарплата', 'дата народження', 'дата початку', 'адреса'],
+            'Працівники': ['id працівника', 'прізвище', 'імʼя', 'по-батькові', 'посада', 'зарплата', 'дата народження', 'дата початку', 'адреса'],
             'Картки лояльності': ['номер картки', 'ПІБ', 'номер телефону', 'адреса', 'відсоток знижки'],
         }
 
@@ -59,8 +59,10 @@ class DashboardView:
                 ('Напої', '2'),
             ],
             'Працівники': [
-                ('1', 'Іван Іванов', 'Касир', '15000', '1990-01-01', '2020-05-01', 'Київ'),
-                ('2', 'Петро Петренко', 'Менеджер', '25000', '1985-03-15', '2018-09-10', 'Львів'),
+                ('1', 'Іванов', 'Іван', 'Іванович', 'Касир', '15000', '1990-01-01', '2020-05-01', 'Київ'),
+                ('2', 'Петренко', 'Петро', 'Петрович', 'Менеджер', '25000', '1985-03-15', '2018-09-10', 'Львів'),
+                ('3', 'Коваленко', 'Анна', 'Сергіївна', 'Касир', '16000', '1995-07-12', '2021-03-15', 'Київ'),
+                ('4', 'Шевченко', 'Зоя', 'Олександрівна', 'Консультант', '14000', '1992-11-05', '2022-01-10', 'Одеса'),
             ],
             'Картки лояльності': [
                 ('1001', 'Олена Оленова', '0987654321', 'Одеса', '5%'),
@@ -119,6 +121,13 @@ class DashboardView:
             tree.heading(col, text=col)
             tree.column(col, width=150)
 
+        # For the "Працівники" tab, add sorting capability when clicking on headers
+        if tab_text == 'Працівники':
+            for i, col in enumerate(columns):
+                # Command to sort treeview when header is clicked
+                tree.heading(col, text=col,
+                             command=lambda _col=col, _i=i: self.sort_treeview(tab_text, _col, _i))
+
         # Add scrollbars
         v_scrollbar = tk.Scrollbar(tree_frame, orient='vertical', command=tree.yview)
         h_scrollbar = tk.Scrollbar(tree_frame, orient='horizontal', command=tree.xview)
@@ -136,6 +145,13 @@ class DashboardView:
         # Insert mock data into the Treeview
         for row in self.mock_data.get(tab_text, []):
             tree.insert("", "end", values=row)
+
+        # For Працівники tab, sort by ПІБ by default
+        if tab_text == 'Працівники':
+            # Get the index of the ПІБ column
+            pib_index = columns.index('прізвище')
+            # Sort the Працівники treeview by ПІБ
+            self.sort_treeview(tab_text, 'прізвище', pib_index)
 
         # Bind double-click event for editing cells
         tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
@@ -178,6 +194,11 @@ class DashboardView:
 
             # Also add to our mock data (in a real app, this would save to a database)
             self.mock_data[tab_name].append(new_values)
+
+            # Resort if we're in the Працівники tab
+            if tab_name == 'Працівники':
+                pib_index = self.entity_columns[tab_name].index('прізвище')
+                self.sort_treeview(tab_name, 'прізвище', pib_index)
 
             # Close the dialog
             dialog.destroy()
@@ -290,6 +311,11 @@ class DashboardView:
                     index = self.mock_data[tab_name].index(old_values_tuple)
                     self.mock_data[tab_name][index] = tuple(values)
 
+                # Resort if we're in the Працівники tab and changed the ПІБ field
+                if tab_name == 'Працівники' and column_name == 'прізвище':
+                    pib_index = self.entity_columns[tab_name].index('прізвище')
+                    self.sort_treeview(tab_name, 'прізвище', pib_index)
+
             edit_dialog.destroy()
 
         # Save button
@@ -309,6 +335,23 @@ class DashboardView:
 
         # Handle Enter key
         entry.bind("<Return>", lambda event: save_edit())
+
+    def sort_treeview(self, tab_name, column, column_index):
+        """Sort treeview by the specified column"""
+        tree = self.treeviews[tab_name]
+
+        # Get all items from the treeview
+        data = [(tree.item(item, 'values'), item) for item in tree.get_children('')]
+
+        # Sort based on the clicked column
+        if tab_name == 'Працівники' and column == 'прізвище':
+            data.sort(key=lambda x: x[0][1])  # Sort by прізвище (index 1)
+        else:
+            data.sort(key=lambda x: x[0][column_index])
+
+        # Rearrange items in the treeview
+        for index, (values, item) in enumerate(data):
+            tree.move(item, '', index)
 
 
 if __name__ == "__main__":
