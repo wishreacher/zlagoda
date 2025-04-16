@@ -1,6 +1,6 @@
 import tkinter as tk
 import tkinter.ttk as ttk
-from tkinter import font, simpledialog
+from tkinter import font, simpledialog, messagebox
 
 
 class DashboardView:
@@ -77,19 +77,32 @@ class DashboardView:
         frame = tk.Frame(notebook)
         notebook.add(frame, text=tab_text)
 
-        # Create a container frame that will hold the button and treeview
+        # Create a container frame that will hold the buttons and treeview
         container_frame = tk.Frame(frame)
         container_frame.pack(fill='both', expand=True, padx=10, pady=10)
 
-        # Add the + button at the top right of the container
+        # Create a button frame for the top
+        button_frame = tk.Frame(container_frame)
+        button_frame.pack(side='top', fill='x', pady=(0, 5))
+
+        # Add the + button (aligned right)
         add_button = tk.Button(
-            container_frame,
+            button_frame,
             text="+",
             font=("Space Mono", 16, "bold"),
             width=3,
             command=lambda t=tab_text: self.add_new_item(t)
         )
-        add_button.pack(side='top', anchor='ne', pady=(0, 5))
+        add_button.pack(side='right', padx=(5, 0))
+
+        # Add delete button (aligned right)
+        delete_button = tk.Button(
+            button_frame,
+            text="Видалити",
+            font=("Space Mono", 12),
+            command=lambda t=tab_text: self.delete_selected_item(t)
+        )
+        delete_button.pack(side='right', padx=(5, 0))
 
         # Create a frame for the treeview and scrollbars
         tree_frame = tk.Frame(container_frame)
@@ -123,6 +136,9 @@ class DashboardView:
         # Insert mock data into the Treeview
         for row in self.mock_data.get(tab_text, []):
             tree.insert("", "end", values=row)
+
+        # Bind double-click event for editing cells
+        tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
 
     def add_new_item(self, tab_name):
         """Handle adding a new item to the specified tab"""
@@ -180,6 +196,119 @@ class DashboardView:
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (dialog.winfo_width() // 2)
         y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
+
+    def delete_selected_item(self, tab_name):
+        """Delete the selected item from the treeview"""
+        tree = self.treeviews[tab_name]
+        selected_item = tree.selection()
+
+        if not selected_item:
+            messagebox.showinfo("Інформація", "Виберіть елемент для видалення")
+            return
+
+        # Get the values of the selected item to find it in the mock data
+        item_values = tree.item(selected_item, 'values')
+
+        # Ask for confirmation
+        confirm = messagebox.askyesno(
+            "Підтвердження видалення",
+            f"Ви впевнені, що хочете видалити цей запис?\n\n{item_values}"
+        )
+
+        if confirm:
+            # Remove from treeview
+            tree.delete(selected_item)
+
+            # Remove from mock data
+            # Convert the tuple from item_values to match the format in mock_data
+            item_values_tuple = tuple(item_values)
+            if item_values_tuple in self.mock_data[tab_name]:
+                self.mock_data[tab_name].remove(item_values_tuple)
+
+    def on_cell_double_click(self, event, tab_name):
+        """Handle double-click on a cell to edit its value"""
+        tree = self.treeviews[tab_name]
+
+        # Get the clicked region (check if it's on a cell, not a header)
+        region = tree.identify("region", event.x, event.y)
+        if region != "cell":
+            return
+
+        # Get the item and column that was clicked
+        column = tree.identify_column(event.x)
+        item = tree.identify_row(event.y)
+
+        if not item:
+            return
+
+        # Convert column string like '#1', '#2' to an index
+        column_index = int(column.replace('#', '')) - 1
+
+        # Get the column name
+        columns = self.entity_columns[tab_name]
+        if column_index >= len(columns):
+            return
+        column_name = columns[column_index]
+
+        # Get the current value
+        current_value = tree.item(item, 'values')[column_index]
+
+        # Create a top-level window for editing
+        edit_dialog = tk.Toplevel(self.root)
+        edit_dialog.title(f"Редагувати {column_name}")
+        edit_dialog.geometry("300x150")
+        edit_dialog.transient(self.root)
+        edit_dialog.grab_set()
+
+        # Label
+        label = tk.Label(edit_dialog, text=f"Редагувати {column_name}:")
+        label.pack(pady=(20, 10))
+
+        # Entry widget with current value
+        entry = tk.Entry(edit_dialog, font=("Space Mono", 12), width=25)
+        entry.insert(0, current_value)
+        entry.pack(pady=10)
+        entry.select_range(0, tk.END)  # Select all text
+        entry.focus_set()  # Give focus to the entry
+
+        # Function to save the edited value
+        def save_edit():
+            new_value = entry.get()
+            if new_value != current_value:
+                # Get all values from the item
+                values = list(tree.item(item, 'values'))
+
+                # Update the specific column
+                values[column_index] = new_value
+
+                # Update in treeview
+                tree.item(item, values=values)
+
+                # Update in mock data (need to find and replace the tuple)
+                old_values_tuple = tree.item(item, 'values')
+                if old_values_tuple in self.mock_data[tab_name]:
+                    index = self.mock_data[tab_name].index(old_values_tuple)
+                    self.mock_data[tab_name][index] = tuple(values)
+
+            edit_dialog.destroy()
+
+        # Save button
+        save_button = tk.Button(
+            edit_dialog,
+            text="Зберегти",
+            font=("Space Mono", 12),
+            command=save_edit
+        )
+        save_button.pack(pady=10)
+
+        # Center the dialog
+        edit_dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (edit_dialog.winfo_width() // 2)
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (edit_dialog.winfo_height() // 2)
+        edit_dialog.geometry(f"+{x}+{y}")
+
+        # Handle Enter key
+        entry.bind("<Return>", lambda event: save_edit())
 
 
 if __name__ == "__main__":
