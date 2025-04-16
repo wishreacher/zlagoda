@@ -4,6 +4,7 @@ from tkinter import font, simpledialog, messagebox
 
 
 class DashboardView:
+    show_cashiers_only = False  # Class variable to track the toggle state
     def __init__(self, root, username):
         self.root = root
         self.root.title("Manager Dashboard")
@@ -87,6 +88,25 @@ class DashboardView:
         button_frame = tk.Frame(container_frame)
         button_frame.pack(side='top', fill='x', pady=(0, 5))
 
+        # Add the toggle button for cashiers (only for Працівники tab)
+        if tab_text == 'Працівники':
+            self.show_cashiers_only = False  # Toggle state
+
+            def toggle_cashiers():
+                self.show_cashiers_only = not self.show_cashiers_only
+                toggle_button.config(
+                    text="Показати всіх" if self.show_cashiers_only else "Показати касирів"
+                )
+                update_treeview()
+
+            toggle_button = tk.Button(
+                button_frame,
+                text="Показати касирів",
+                font=("Space Mono", 12),
+                command=toggle_cashiers
+            )
+            toggle_button.pack(side='left', padx=(5, 0))
+
         # Add the + button (aligned right)
         add_button = tk.Button(
             button_frame,
@@ -121,13 +141,6 @@ class DashboardView:
             tree.heading(col, text=col)
             tree.column(col, width=150)
 
-        # For the "Працівники" tab, add sorting capability when clicking on headers
-        if tab_text == 'Працівники':
-            for i, col in enumerate(columns):
-                # Command to sort treeview when header is clicked
-                tree.heading(col, text=col,
-                             command=lambda _col=col, _i=i: self.sort_treeview(tab_text, _col, _i))
-
         # Add scrollbars
         v_scrollbar = tk.Scrollbar(tree_frame, orient='vertical', command=tree.yview)
         h_scrollbar = tk.Scrollbar(tree_frame, orient='horizontal', command=tree.xview)
@@ -142,16 +155,17 @@ class DashboardView:
         tree_frame.grid_rowconfigure(0, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
 
-        # Insert mock data into the Treeview
-        for row in self.mock_data.get(tab_text, []):
-            tree.insert("", "end", values=row)
+        # Function to update the Treeview based on the toggle state
+        def update_treeview():
+            tree.delete(*tree.get_children())  # Clear existing rows
+            data = self.mock_data.get(tab_text, [])
+            if self.show_cashiers_only:
+                data = [row for row in data if row[4] == 'Касир']  # Filter by "Касир"
+            for row in data:
+                tree.insert("", "end", values=row)
 
-        # For Працівники tab, sort by ПІБ by default
-        if tab_text == 'Працівники':
-            # Get the index of the ПІБ column
-            pib_index = columns.index('прізвище')
-            # Sort the Працівники treeview by ПІБ
-            self.sort_treeview(tab_text, 'прізвище', pib_index)
+        # Insert initial data into the Treeview
+        update_treeview()
 
         # Bind double-click event for editing cells
         tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
