@@ -1,7 +1,5 @@
 import tkinter as tk
 from tkinter import messagebox, font
-import re
-
 
 class LoginPage:
     def __init__(self, root):
@@ -11,9 +9,9 @@ class LoginPage:
         self.root.resizable(False, False)
 
         # Register custom font with tkinter
-        custom_font = font.Font(family="Avenir Next", size=12)
-        title_font = font.Font(family="Avenir Next", size=18, weight="bold")
-        small_font = font.Font(family="Avenir Next", size=10)
+        custom_font = font.Font(family="Space Mono", size=12)
+        title_font = font.Font(family="Space Mono", size=18, weight="bold")
+        small_font = font.Font(family="Space Mono", size=10)
 
         # Create a frame for the login form
         self.login_frame = tk.Frame(root)
@@ -62,16 +60,6 @@ class LoginPage:
         )
         self.password_entry.grid(row=2, column=1, pady=5, padx=5)
 
-        # Remember me checkbox with custom font
-        self.remember_var = tk.IntVar()
-        self.remember_checkbutton = tk.Checkbutton(
-            self.login_frame,
-            text="Remember me",
-            variable=self.remember_var,
-            font=small_font
-        )
-        self.remember_checkbutton.grid(row=3, column=0, columnspan=2, sticky="w", pady=5)
-
         # Login button with custom font
         self.login_button = tk.Button(
             self.login_frame,
@@ -82,22 +70,16 @@ class LoginPage:
         )
         self.login_button.grid(row=4, column=0, columnspan=2, pady=20)
 
-        # Register link with custom font
-        self.register_link = tk.Label(
-            self.login_frame,
-            text="Don't have an account? Register here",
-            font=small_font,
-            fg="blue",
-            cursor="hand2"
-        )
-        self.register_link.grid(row=5, column=0, columnspan=2)
-        self.register_link.bind("<Button-1>", self.register)
-
     def validate_login(self):
         username = self.username_entry.get()
         password = self.password_entry.get()
 
-        # Simple validation
+        mock_database = {
+            "cash1": {"password": "1", "role": "cashier"},
+            "man1": {"password": "1", "role": "manager"}
+        }
+
+        # Validation
         if not username:
             messagebox.showerror("Error", "Username cannot be empty")
             return
@@ -106,38 +88,34 @@ class LoginPage:
             messagebox.showerror("Error", "Password cannot be empty")
             return
 
-        # Check for valid username format (alphanumeric)
-        if not re.match(r'^[a-zA-Z0-9]+$', username):
-            messagebox.showerror("Error", "Username must be alphanumeric")
-            return
-
-        # Check password length
-        if len(password) < 6:
-            messagebox.showerror("Error", "Password must be at least 6 characters")
-            return
-
-        # For demo purposes only - in a real app you would check against a database
-        if username == "admin" and password == "password123":
-            self.open_dashboard(username)
+        # Check if user exists in the database
+        user_data = mock_database.get(username)
+        if user_data and user_data["password"] == password:
+            role = user_data["role"]
+            if role == "cashier":
+                self.open_cashier_dashboard(username)
+            elif role == "manager":
+                self.open_manager_dashboard(username)
+            else:
+                messagebox.showerror("Error", "Unknown role")
         else:
             messagebox.showerror("Error", "Invalid username or password")
 
-    def open_dashboard(self, username):
-        """Open the dashboard window after successful login"""
-        # Close the login window
+    def open_cashier_dashboard(self, username):
+        """Open the cashier dashboard"""
         self.root.destroy()
-
-        # Import here to avoid circular imports
-        from DashboardView import DashboardView
-
-        # Create and open the dashboard window
+        from CashierDashboard import DashboardView
         dashboard_root = tk.Tk()
         dashboard_app = DashboardView(dashboard_root, username)
         dashboard_root.mainloop()
 
-    def register(self, event):
-        messagebox.showinfo("Register", "Registration functionality not implemented in this demo")
-
+    def open_manager_dashboard(self, username):
+        """Open the manager dashboard"""
+        self.root.destroy()
+        from ManagerDashboard import DashboardView
+        dashboard_root = tk.Tk()
+        dashboard_app = DashboardView(dashboard_root, username)
+        dashboard_root.mainloop()
 
 # Only run this if the file is executed directly (not imported)
 if __name__ == "__main__":
