@@ -1,351 +1,138 @@
 from datetime import datetime, date
 
-def update_employee_treeview(self):
-    """Update the Працівники Treeview with search and cashier filters"""
-    tree = self.treeviews['Працівники']
-    tree.delete(*tree.get_children())  # Clear existing rows
 
-    # Get the search term
-    search_term = self.search_var.get().lower()
-    data = self.mock_data['Працівники']
-
-    # Apply cashier filter
-    if self.show_cashiers_only:
-        data = [row for row in data if row[4] == 'Касир']
-
-    # Apply search filter (прізвище is index 1)
-    if search_term:
-        data = [
-            row for row in data
-            if search_term in row[1].lower()
-        ]
-
-    # Insert filtered data
-    for row in data:
-        tree.insert("", "end", values=row)
-
-def update_customer_treeview(self):
-    """Update the Постійні клієнти Treeview with discount percentage filter"""
-    tree = self.treeviews['Постійні клієнти']
-    tree.delete(*tree.get_children())  # Clear existing rows
-
-    # Get the search term
-    search_term = self.customer_search_var.get()
-    data = self.mock_data['Постійні клієнти']
-
-    # Apply discount filter (відсоток знижки is index 6)
-    if search_term:
-        try:
-            search_discount = float(search_term)
-            data = [
-                row for row in data
-                if float(row[6].rstrip('%')) >= search_discount
-            ]
-        except ValueError:
-            # If the input is not a valid number, show all data
-            pass
-
-    # Insert filtered data
-    for row in data:
-        tree.insert("", "end", values=row)
-
-def update_product_treeview(self):
-    """Update the Продукти Treeview with category ID filter"""
-    tree = self.treeviews['Продукти']
-    tree.delete(*tree.get_children())  # Clear existing rows
-
-    # Get the search term
-    search_term = self.product_search_var.get().lower()
-    data = self.mock_data['Продукти']
-
-    # Apply category ID filter (id категорії is index 2)
-    if search_term:
-        data = [
-            row for row in data
-            if search_term == row[2].lower()
-        ]
-
-    # Insert filtered data
-    for row in data:
-        tree.insert("", "end", values=row)
-
-def update_store_product_treeview(self):
-    """Update the Продукти в магазині Treeview with UPC search and promotional filter"""
-    tree = self.treeviews['Продукти в магазині']
-    tree.delete(*tree.get_children())  # Clear existing rows
-
-    # Get the search term
-    search_term = self.store_product_search_var.get().lower()
-    data = self.mock_data['Продукти в магазині']
-
-    # Apply UPC search filter (UPC is index 0)
-    if search_term:
-        data = [
-            row for row in data
-            if search_term in row[0].lower()
-        ]
-
-    # Apply promotional filter (акційнний товар is index 4)
-    if self.show_promotional_only:
-        data = [row for row in data if row[4] == 'Так']
-    elif self.show_non_promotional_only:
-        data = [row for row in data if row[4] == 'Ні']
-
-    # Join with Продукти to get the name and create display data
-    display_data = []
-    product_dict = {product[1]: product[0] for product in self.mock_data['Продукти']}  # id продукту -> назва
-    for row in data:
-        product_id = row[1]
-        product_name = product_dict.get(product_id, "Невідомий продукт")
-        # New row format: (UPC, id продукту, назва, ціна, наявність, акційнний товар)
-        display_row = (row[0], row[1], product_name, row[2], row[3], row[4])
-        display_data.append(display_row)
-
-    # Sort based on the selected option
-    sort_option = self.promotional_sort_var.get()
-    if sort_option == "кількість":
-        display_data.sort(key=lambda x: int(x[4]), reverse=True)  # Sort by наявність (index 4)
-    elif sort_option == "назва":
-        display_data.sort(key=lambda x: x[2])  # Sort by назва (index 2)
-
-    # Insert filtered and sorted data
-    for row in display_data:
-        tree.insert("", "end", values=row)
-
-def update_receipt_treeview(self):
-    """Update the Чеки Treeview with cashier and date range filters"""
-    tree = self.treeviews['Чеки']
-    tree.delete(*tree.get_children())  # Clear existing rows
-
-    # Get filter values
-    cashier_id = self.receipt_cashier_var.get()
-    start_date = self.receipt_start_date_var.get()
-    end_date = self.receipt_end_date_var.get()
-
-    # Validate dates
-    try:
-        start = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
-        end = datetime.strptime(end_date, '%Y-%m-%d') if end_date else None
-    except ValueError:
-        start, end = None, None
-
-    # Get receipt data
-    data = self.mock_data['Чеки']
-    cashier_dict = {worker[0]: f"{worker[1]} {worker[2]}" for worker in self.mock_data['Працівники']}
-
-    # Filter by cashier
-    if cashier_id and cashier_id != "Всі касири":
-        data = [row for row in data if row[1] == cashier_id]
-
-    # Filter by date range
-    filtered_data = []
-    for row in data:
-        receipt_date = datetime.strptime(row[2], '%Y-%m-%d %H:%M:%S')
-        if start and receipt_date < start:
-            continue
-        if end and receipt_date > end:
-            continue
-        filtered_data.append(row)
-
-    # Prepare display data with cashier name
-    display_data = []
-    for row in filtered_data:
-        cashier_id = row[1]
-        cashier_name = cashier_dict.get(cashier_id, "Невідомий касир")
-        display_row = (row[0], cashier_name, row[2], row[3])
-        display_data.append(display_row)
-
-    # Insert filtered data
-    for row in display_data:
-        tree.insert("", "end", values=row)
-
-    # Update reports (totals)
-    self.update_receipt_reports()
-
-def update_receipt_reports(self):
-    """Update the reports section with total sales and product quantities"""
-    # Get filter values
-    cashier_id = self.receipt_cashier_var.get()
-    start_date = self.receipt_start_date_var.get()
-    end_date = self.receipt_end_date_var.get()
-    product_upc = self.receipt_product_var.get()
-
-    # Validate dates
-    try:
-        start = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
-        end = datetime.strptime(end_date, '%Y-%m-%d') if end_date else None
-    except ValueError:
-        start, end = None, None
-
-    # Get receipt data
-    receipts = self.mock_data['Чеки']
-    receipt_items = self.mock_data['Товари в чеку']
-
-    # Filter receipts by cashier and date range
-    filtered_receipts = []
-    for receipt in receipts:
-        receipt_date = datetime.strptime(receipt[2], '%Y-%m-%d %H:%M:%S')
-        if start and receipt_date < start:
-            continue
-        if end and receipt_date > end:
-            continue
-        if cashier_id and cashier_id != "Всі касири" and receipt[1] != cashier_id:
-            continue
-        filtered_receipts.append(receipt)
-
-    # Calculate total sales for specific cashier
-    total_sales_specific = sum(float(receipt[3]) for receipt in filtered_receipts if cashier_id and cashier_id != "Всі касири")
-
-    # Calculate total sales for all cashiers
-    total_sales_all = sum(float(receipt[3]) for receipt in filtered_receipts)
-
-    # Calculate total quantity of a specific product sold
-    total_quantity = 0
-    if product_upc:
-        for receipt in filtered_receipts:
-            receipt_id = receipt[0]
-            for item in receipt_items:
-                if item[0] == receipt_id and item[1] == product_upc:
-                    total_quantity += int(item[2])
-
-    # Update report labels
-    self.total_sales_specific_label.config(text=f"Сума (вибраний касир): {total_sales_specific:.2f}")
-    self.total_sales_all_label.config(text=f"Сума (всі касири): {total_sales_all:.2f}")
-    self.total_quantity_label.config(text=f"Кількість товару (UPC {product_upc or 'не вибрано'}): {total_quantity}")
-
-# Cashier-specific updaters
 def update_cashier_product_treeview(self):
-    """Update the Продукти Treeview with name and category search (Req 1, 4, 5)"""
-    tree = self.treeviews['Продукти']
-    tree.delete(*tree.get_children())  # Clear existing rows
+    """Update the Product Treeview with name and category search (Req 1, 4, 5)"""
+    tree = self.treeviews['Product']
+    tree.delete(*tree.get_children())
 
-    # Get search terms
     name_search = self.cashier_product_name_var.get().lower()
-    category_search = self.cashier_product_category_var.get().lower()
-    data = self.mock_data['Продукти']
+    category_search = self.cashier_product_category_var.get()
 
-    # Apply name search (Req 4)
+    query = "SELECT id_product, product_name, category_number, characteristics FROM Product"
+    conditions = []
+    params = []
+
     if name_search:
-        data = [row for row in data if name_search in row[0].lower()]
-
-    # Apply category search (Req 5)
+        conditions.append("LOWER(product_name) LIKE ?")
+        params.append(f"%{name_search}%")
     if category_search:
-        data = [row for row in data if category_search == row[2].lower()]
+        conditions.append("category_number = ?")
+        params.append(category_search)
 
-    # Sort by name (Req 1)
-    data.sort(key=lambda x: x[0])
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
 
-    # Insert filtered data
+    query += " ORDER BY product_name ASC"
+
+    data = self.db.fetch_filtered(query, params)
+
     for row in data:
         tree.insert("", "end", values=row)
+
 
 def update_cashier_store_product_treeview(self):
-    """Update the Продукти в магазині Treeview with filters and sorting (Req 2, 12, 13, 14)"""
-    tree = self.treeviews['Продукти в магазині']
-    tree.delete(*tree.get_children())  # Clear existing rows
+    """Update the Store_Product Treeview with filters and sorting (Req 2, 12, 13, 14)"""
+    tree = self.treeviews['Store_Product']
+    tree.delete(*tree.get_children())
 
-    # Get the search term
     search_term = self.cashier_store_product_search_var.get().lower()
-    data = self.mock_data['Продукти в магазині']
-
-    # Apply UPC search filter (Req 14)
-    if search_term:
-        data = [row for row in data if search_term in row[0].lower()]
-
-    # Apply promotional/non-promotional filter (Req 12, 13)
-    if self.cashier_show_promotional_only:
-        data = [row for row in data if row[4] == 'Так']
-    elif self.cashier_show_non_promotional_only:
-        data = [row for row in data if row[4] == 'Ні']
-
-    # Join with Продукти to get the name and create display data
-    display_data = []
-    product_dict = {product[1]: product[0] for product in self.mock_data['Продукти']}  # id продукту -> назва
-    for row in data:
-        product_id = row[1]
-        product_name = product_dict.get(product_id, "Невідомий продукт")
-        # New row format: (UPC, id продукту, назва, ціна, наявність, акційнний товар)
-        display_row = (row[0], row[1], product_name, row[2], row[3], row[4])
-        display_data.append(display_row)
-
-    # Sort based on the selected option (Req 2, 12, 13)
     sort_option = self.cashier_promotional_sort_var.get()
-    if sort_option == "кількість":
-        display_data.sort(key=lambda x: int(x[4]), reverse=True)  # Sort by наявність (index 4)
-    elif sort_option == "назва":
-        display_data.sort(key=lambda x: x[2])  # Sort by назва (index 2)
 
-    # Insert filtered and sorted data
-    for row in display_data:
+    query = '''
+        SELECT sp.UPC, sp.id_product, p.product_name, sp.selling_price, sp.products_number, 
+               CASE sp.promotional_product WHEN 1 THEN 'Yes' ELSE 'No' END as promotional_product
+        FROM Store_Product sp
+        JOIN Product p ON sp.id_product = p.id_product
+    '''
+    conditions = []
+    params = []
+
+    if search_term:
+        conditions.append("LOWER(sp.UPC) LIKE ?")
+        params.append(f"%{search_term}%")
+
+    if self.cashier_show_promotional_only:
+        conditions.append("sp.promotional_product = 1")
+    elif self.cashier_show_non_promotional_only:
+        conditions.append("sp.promotional_product = 0")
+
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+
+    if sort_option == "кількість":
+        query += " ORDER BY sp.products_number DESC"
+    elif sort_option == "назва":
+        query += " ORDER BY p.product_name ASC"
+
+    data = self.db.fetch_filtered(query, params)
+
+    for row in data:
         tree.insert("", "end", values=row)
+
 
 def update_cashier_customer_treeview(self):
-    """Update the Постійні клієнти Treeview with surname search (Req 3, 6)"""
-    tree = self.treeviews['Постійні клієнти']
-    tree.delete(*tree.get_children())  # Clear existing rows
+    """Update the Customer_Card Treeview with surname search (Req 3, 6)"""
+    tree = self.treeviews['Customer_Card']
+    tree.delete(*tree.get_children())
 
-    # Get the search term
     search_term = self.cashier_customer_search_var.get().lower()
-    data = self.mock_data['Постійні клієнти']
 
-    # Apply surname search (Req 6)
+    query = "SELECT card_number, cust_surname, cust_name, cust_patronymic, phone_number, street, zip_code, percent FROM Customer_Card"
+    params = []
+
     if search_term:
-        data = [row for row in data if search_term in row[1].lower()]
+        query += " WHERE LOWER(cust_surname) LIKE ?"
+        params.append(f"%{search_term}%")
 
-    # Sort by surname (Req 3)
-    data.sort(key=lambda x: x[1])
+    query += " ORDER BY cust_surname ASC"
 
-    # Insert filtered data
+    data = self.db.fetch_filtered(query, params)
+
     for row in data:
         tree.insert("", "end", values=row)
 
-def update_cashier_receipt_treeview(self):
-    """Update the Чеки Treeview for the cashier with date range filters (Req 9, 10)"""
-    tree = self.treeviews['Чеки']
-    tree.delete(*tree.get_children())  # Clear existing rows
 
-    # Get filter values
+def update_cashier_receipt_treeview(self):
+    """Update the Check Treeview for the cashier with date range filters (Req 9, 10)"""
+    tree = self.treeviews['Check']
+    tree.delete(*tree.get_children())
+
     start_date = self.cashier_receipt_start_date_var.get()
     end_date = self.cashier_receipt_end_date_var.get()
     today = date.today().strftime('%Y-%m-%d')
 
-    # Default to today if no dates provided (Req 9)
     if not start_date and not end_date:
         start_date = today
         end_date = today
 
-    # Validate dates
     try:
         start = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
         end = datetime.strptime(end_date, '%Y-%m-%d') if end_date else None
     except ValueError:
         start, end = None, None
 
-    # Get receipt data
-    data = self.mock_data['Чеки']
-    cashier_dict = {worker[0]: f"{worker[1]} {worker[2]}" for worker in self.mock_data['Працівники']}
+    query = '''
+        SELECT c.check_number, (e.surname || ' ' || e.name) as cashier, c.print_date, c.sum_total
+        FROM "Check" c
+        JOIN Employee e ON c.id_employee = e.id_employee
+        WHERE c.id_employee = ?
+    '''
+    params = [self.cashier_id]
 
-    # Filter by cashier (current cashier)
-    data = [row for row in data if row[1] == self.cashier_id]
+    if start and end:
+        query += " AND c.print_date BETWEEN ? AND ?"
+        params.extend([start_date + " 00:00:00", end_date + " 23:59:59"])
+    elif start:
+        query += " AND c.print_date >= ?"
+        params.append(start_date + " 00:00:00")
+    elif end:
+        query += " AND c.print_date <= ?"
+        params.append(end_date + " 23:59:59")
 
-    # Filter by date range (Req 10)
-    filtered_data = []
+    query += " ORDER BY c.print_date DESC"
+
+    data = self.db.fetch_filtered(query, params)
+
     for row in data:
-        receipt_date = datetime.strptime(row[2], '%Y-%m-%d %H:%M:%S')
-        if start and receipt_date < start:
-            continue
-        if end and receipt_date > end:
-            continue
-        filtered_data.append(row)
-
-    # Prepare display data with cashier name
-    display_data = []
-    for row in filtered_data:
-        cashier_id = row[1]
-        cashier_name = cashier_dict.get(cashier_id, "Невідомий касир")
-        display_row = (row[0], cashier_name, row[2], row[3])
-        display_data.append(display_row)
-
-    # Insert filtered data
-    for row in display_data:
         tree.insert("", "end", values=row)
