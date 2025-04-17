@@ -1,7 +1,7 @@
 import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import font
-from mock_data import get_mock_data
+from database import Database
 from treeview_updater import (
     update_employee_treeview,
     update_customer_treeview,
@@ -10,9 +10,9 @@ from treeview_updater import (
     update_receipt_treeview,
     update_receipt_reports
 )
-from item_operations import add_new_item, delete_selected_item, on_cell_double_click, sort_treeview, show_receipt_items
+from item_operations import add_new_item, delete_selected_item, on_cell_double_click, show_receipt_items
 
-class DashboardView:
+class ManagerDashboard:
     show_cashiers_only = False  # Class variable to track the toggle state
     show_promotional_only = False  # Class variable to track promotional products toggle
 
@@ -26,7 +26,6 @@ class DashboardView:
     add_new_item = add_new_item
     delete_selected_item = delete_selected_item
     on_cell_double_click = on_cell_double_click
-    sort_treeview = sort_treeview
     show_receipt_items = show_receipt_items
 
     def __init__(self, root, username):
@@ -34,6 +33,7 @@ class DashboardView:
         self.root.title("Manager Dashboard")
         self.root.geometry("1200x800")
         self.username = username
+        self.db = Database()  # Initialize the database
 
         # Define and apply the custom font globally for standard Tkinter widgets
         custom_font = font.Font(family="Space Mono", size=12)
@@ -57,7 +57,7 @@ class DashboardView:
         style.configure("Treeview.Heading", font=("Space Mono", 12))
         style.configure("TNotebook.Tab", font=("Space Mono", 12))
 
-        # Define the columns for each entity based on the ERD
+        # Define the columns for each entity (using Ukrainian labels for display)
         self.entity_columns = {
             'Продукти': ['назва', 'id продукту', 'id категорії', 'Опис'],
             'Продукти в магазині': ['UPC', 'id продукту', 'назва', 'ціна', 'наявність', 'акційнний товар'],
@@ -81,9 +81,6 @@ class DashboardView:
         self.receipt_end_date_var = tk.StringVar()  # For Чеки (кінцева дата)
         self.receipt_product_var = tk.StringVar()  # For Чеки (UPC товару для підрахунку)
 
-        # Load mock data
-        self.mock_data = get_mock_data()
-
         # Create tabs for each entity
         for entity, columns in self.entity_columns.items():
             self.create_tab(self.notebook, entity, columns)
@@ -98,6 +95,14 @@ class DashboardView:
         self.receipt_start_date_var.trace("w", lambda *args: self.update_receipt_treeview())
         self.receipt_end_date_var.trace("w", lambda *args: self.update_receipt_treeview())
         self.receipt_product_var.trace("w", lambda *args: self.update_receipt_reports())
+
+        # Bind the window close event to properly close the database connection
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def on_closing(self):
+        """Handle window closing to ensure the database connection is closed"""
+        self.db.close()
+        self.root.destroy()
 
     def create_tab(self, notebook, tab_text, columns):
         # Create a frame for the tab
@@ -177,7 +182,10 @@ class DashboardView:
             # Cashier filter
             cashier_label = tk.Label(button_frame, text="Касир:")
             cashier_label.pack(side='left', padx=(5, 0))
-            cashier_options = ["Всі касири"] + [worker[0] for worker in self.mock_data['Працівники'] if worker[4] == 'Касир']
+            cashier_data = self.db.fetch_filtered("SELECT id_employee, surname, name FROM Employee WHERE role = 'Cashier'")
+            cashier_options = ["Всі касири"] + [f"{row[1]} {row[2]}" for row in cashier_data]
+            cashier_ids = ["Всі касири"] + [row[0] for row in cashier_data]
+            self.cashier_mapping = dict(zip(cashier_options, cashier_ids))  # Map display names to IDs
             cashier_menu = ttk.OptionMenu(
                 button_frame,
                 self.receipt_cashier_var,
@@ -274,7 +282,8 @@ class DashboardView:
             # Product UPC for quantity calculation
             product_label = tk.Label(reports_frame, text="UPC товару для підрахунку:")
             product_label.pack(side='left', padx=(5, 0))
-            product_options = [""] + [item[0] for item in self.mock_data['Продукти в магазині']]
+            product_data = self.db.fetch_all('Store_Product')
+            product_options = [""] + [row[0] for row in product_data]
             product_menu = ttk.OptionMenu(
                 reports_frame,
                 self.receipt_product_var,
@@ -291,15 +300,6 @@ class DashboardView:
             self.total_quantity_label = tk.Label(reports_frame, text="Кількість товару (UPC не вибрано): 0")
             self.total_quantity_label.pack(side='left', padx=(10, 0))
 
-        # Function to update the Treeview (for tabs without search)
-        def update_treeview():
-            tree.delete(*tree.get_children())  # Clear existing rows
-            data = self.mock_data.get(tab_text, [])
-            if self.show_cashiers_only and tab_text == 'Працівники':
-                data = [row for row in data if row[4] == 'Касир']  # Filter by "Касир"
-            for row in data:
-                tree.insert("", "end", values=row)
-
         # Use the appropriate update function for each tab
         if tab_text == 'Працівники':
             self.update_employee_treeview()
@@ -311,13 +311,17 @@ class DashboardView:
             self.update_store_product_treeview()
         elif tab_text == 'Чеки':
             self.update_receipt_treeview()
-        else:
-            update_treeview()
+        else:  # Категорії
+            query = "SELECT category_name, category_number FROM Category"
+            data = self.db.fetch_filtered(query)
+            tree.delete(*tree.get_children())
+            for row in data:
+                tree.insert("", "end", values=row)
 
         # Bind double-click event for editing cells or viewing receipt details
         tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = DashboardView(root, "username")
+    app = ManagerDashboard(root, "username")
     root.mainloop()

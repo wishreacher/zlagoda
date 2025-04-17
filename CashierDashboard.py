@@ -10,7 +10,7 @@ from treeview_updater import (
 )
 from item_operations import add_new_item, delete_selected_item, on_cell_double_click, show_receipt_items, sell_products
 
-class CashierDashboard:
+class DashboardView:
     cashier_show_promotional_only = False
     cashier_show_non_promotional_only = False
 
@@ -204,5 +204,5 @@ class CashierDashboard:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = CashierDashboard(root, "1")
+    app = DashboardView(root, "1")
     root.mainloop()

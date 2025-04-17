@@ -2,6 +2,64 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from datetime import datetime
 
+# Mapping of tab names to database table names
+TABLE_MAPPING = {
+    'Продукти': 'Product',
+    'Продукти в магазині': 'Store_Product',
+    'Категорії': 'Category',
+    'Працівники': 'Employee',
+    'Постійні клієнти': 'Customer_Card',
+    'Чеки': 'Check'
+}
+
+# Mapping of Ukrainian labels to database column names for each tab
+COLUMN_MAPPING = {
+    'Продукти': {
+        'назва': 'product_name',
+        'id продукту': 'id_product',
+        'id категорії': 'category_number',
+        'Опис': 'characteristics'
+    },
+    'Продукти в магазині': {
+        'UPC': 'UPC',
+        'id продукту': 'id_product',
+        'назва': 'product_name',  # This is fetched via JOIN
+        'ціна': 'selling_price',
+        'наявність': 'products_number',
+        'акційнний товар': 'promotional_product'
+    },
+    'Категорії': {
+        'назва': 'category_name',
+        'номер категорії': 'category_number'
+    },
+    'Працівники': {
+        'id працівника': 'id_employee',
+        'прізвище': 'surname',
+        'імʼя': 'name',
+        'по-батькові': 'patronymic',
+        'посада': 'role',
+        'зарплата': 'salary',
+        'дата народження': 'date_of_birth',
+        'дата початку': 'date_of_start',
+        'адреса': 'address'
+    },
+    'Постійні клієнти': {
+        'номер картки': 'card_number',
+        'прізвище': 'cust_surname',
+        'імʼя': 'cust_name',
+        'по-батькові': 'cust_patronymic',
+        'номер телефону': 'phone_number',
+        'адреса': 'street',  # Will concatenate with zip_code in UI
+        'відсоток знижки': 'percent'
+    },
+    'Чеки': {
+        'номер чеку': 'check_number',
+        'касир': 'cashier',  # This is computed in the query
+        'дата': 'print_date',
+        'загальна сума': 'sum_total'
+    }
+}
+
 def add_new_item(self, tab_name):
     """Handle adding a new item to the specified tab"""
     columns = self.entity_columns[tab_name]
@@ -21,21 +79,40 @@ def add_new_item(self, tab_name):
         values[col] = entry
 
     def save_item():
+        # Map UI labels to database columns
+        db_columns = [COLUMN_MAPPING[tab_name][col] for col in columns]
         new_values = tuple(entry.get() for entry in values.values())
-        placeholders = ', '.join(['?' for _ in new_values])
-        query = f'INSERT INTO "{tab_name}" VALUES ({placeholders})'
+
+        # Special handling for certain fields
+        processed_values = []
+        for col, val in zip(columns, new_values):
+            if tab_name == 'Продукти в магазині' and col == 'акційнний товар':
+                processed_values.append(1 if val.lower() in ['так', 'yes'] else 0)
+            else:
+                processed_values.append(val)
+
+        table_name = TABLE_MAPPING[tab_name]
+        placeholders = ', '.join(['?' for _ in processed_values])
+        query = f'INSERT INTO "{table_name}" ({", ".join(db_columns)}) VALUES ({placeholders})'
 
         self.db.begin_transaction()
         try:
-            self.db.execute_query(query, new_values)
+            self.db.execute_query(query, processed_values)
             self.db.commit_transaction()
         except Exception as e:
             self.db.rollback_transaction()
             messagebox.showerror("Error", f"Failed to add item: {str(e)}")
             return
 
-        if tab_name == 'Customer_Card':
-            self.update_cashier_customer_treeview()
+        # Update the corresponding treeview
+        if tab_name == 'Працівники':
+            self.update_employee_treeview()
+        elif tab_name == 'Постійні клієнти':
+            self.update_customer_treeview()
+        elif tab_name == 'Продукти':
+            self.update_product_treeview()
+        elif tab_name == 'Продукти в магазині':
+            self.update_store_product_treeview()
 
         dialog.destroy()
 
@@ -60,11 +137,15 @@ def delete_selected_item(self, tab_name):
     confirm = messagebox.askyesno("Confirm Deletion", f"Are you sure you want to delete this record?\n\n{item_values}")
 
     if confirm:
+        table_name = TABLE_MAPPING[tab_name]
+        pk_column = COLUMN_MAPPING[tab_name][self.entity_columns[tab_name][0]]  # First column is the primary key
+        pk_value = item_values[0]
+
+        query = f"DELETE FROM \"{table_name}\" WHERE {pk_column} = ?"
+
         self.db.begin_transaction()
         try:
-            if tab_name == 'Customer_Card':
-                query = "DELETE FROM Customer_Card WHERE card_number = ?"
-                self.db.execute_query(query, (item_values[0],))
+            self.db.execute_query(query, (pk_value,))
             self.db.commit_transaction()
         except Exception as e:
             self.db.rollback_transaction()
@@ -72,8 +153,16 @@ def delete_selected_item(self, tab_name):
             return
 
         tree.delete(selected_item)
-        if tab_name == 'Customer_Card':
-            self.update_cashier_customer_treeview()
+
+        # Update the corresponding treeview
+        if tab_name == 'Працівники':
+            self.update_employee_treeview()
+        elif tab_name == 'Постійні клієнти':
+            self.update_customer_treeview()
+        elif tab_name == 'Продукти':
+            self.update_product_treeview()
+        elif tab_name == 'Продукти в магазині':
+            self.update_store_product_treeview()
 
 def on_cell_double_click(self, event, tab_name):
     """Handle double-click on a cell to edit its value or view receipt details"""
@@ -82,7 +171,7 @@ def on_cell_double_click(self, event, tab_name):
     if region != "cell":
         return
 
-    if tab_name == 'Check':
+    if tab_name == 'Чеки':
         selected_item = tree.selection()
         if not selected_item:
             return
@@ -123,11 +212,21 @@ def on_cell_double_click(self, event, tab_name):
             values = list(tree.item(item, 'values'))
             values[column_index] = new_value
 
+            table_name = TABLE_MAPPING[tab_name]
+            db_column = COLUMN_MAPPING[tab_name][column_name]
+            pk_column = COLUMN_MAPPING[tab_name][columns[0]]
+            pk_value = values[0]
+
+            # Special handling for certain fields
+            if tab_name == 'Продукти в магазині' and column_name == 'акційнний товар':
+                new_value = 1 if new_value.lower() in ['так', 'yes'] else 0
+                values[column_index] = 'Так' if new_value == 1 else 'Ні'
+
+            query = f"UPDATE \"{table_name}\" SET {db_column} = ? WHERE {pk_column} = ?"
+
             self.db.begin_transaction()
             try:
-                if tab_name == 'Customer_Card':
-                    query = f"UPDATE Customer_Card SET {column_name} = ? WHERE card_number = ?"
-                    self.db.execute_query(query, (new_value, values[0]))
+                self.db.execute_query(query, (new_value, pk_value))
                 self.db.commit_transaction()
             except Exception as e:
                 self.db.rollback_transaction()
@@ -135,8 +234,16 @@ def on_cell_double_click(self, event, tab_name):
                 return
 
             tree.item(item, values=values)
-            if tab_name == 'Customer_Card':
-                self.update_cashier_customer_treeview()
+
+            # Update the corresponding treeview
+            if tab_name == 'Працівники':
+                self.update_employee_treeview()
+            elif tab_name == 'Постійні клієнти':
+                self.update_customer_treeview()
+            elif tab_name == 'Продукти':
+                self.update_product_treeview()
+            elif tab_name == 'Продукти в магазині':
+                self.update_store_product_treeview()
 
         edit_dialog.destroy()
 
@@ -150,7 +257,7 @@ def on_cell_double_click(self, event, tab_name):
     entry.bind("<Return>", lambda event: save_edit())
 
 def show_receipt_items(self, check_number):
-    """Show the purchased items in a specific check (Req 11)"""
+    """Show the purchased items in a specific check"""
     dialog = tk.Toplevel(self.root)
     dialog.title(f"Items in Check {check_number}")
     dialog.geometry("600x400")
