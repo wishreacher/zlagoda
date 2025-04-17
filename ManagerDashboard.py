@@ -5,6 +5,7 @@ from tkinter import font, simpledialog, messagebox
 
 class DashboardView:
     show_cashiers_only = False  # Class variable to track the toggle state
+    show_promotional_only = False  # Class variable to track promotional products toggle
     def __init__(self, root, username):
         self.root = root
         self.root.title("Manager Dashboard")
@@ -36,7 +37,7 @@ class DashboardView:
         # Define the columns for each entity based on the ERD
         self.entity_columns = {
             'Продукти': ['назва', 'id продукту', 'id категорії', 'Опис'],
-            'Продукти в магазині': ['UPC', 'id продукту', 'ціна', 'наявність', 'акційнний товар'],
+            'Продукти в магазині': ['UPC', 'id продукту', 'назва', 'ціна', 'наявність', 'акційнний товар'],
             'Категорії': ['назва', 'номер категорії'],
             'Працівники': ['id працівника', 'прізвище', 'імʼя', 'по-батькові', 'посада', 'зарплата', 'дата народження', 'дата початку', 'адреса'],
             'Постійні клієнти': ['номер картки', 'прізвище', 'імʼя', 'по-батькові', 'номер телефону', 'адреса', 'відсоток знижки'],
@@ -47,11 +48,10 @@ class DashboardView:
 
         # Store search terms for each tab
         self.search_var = tk.StringVar()  # For Працівники (прізвище)
-        self.search_var.trace("w", lambda *args: self.update_employee_treeview())
         self.customer_search_var = tk.StringVar()  # For Постійні клієнти (відсоток знижки)
-        self.customer_search_var.trace("w", lambda *args: self.update_customer_treeview())
         self.product_search_var = tk.StringVar()  # For Продукти (id категорії)
-        self.product_search_var.trace("w", lambda *args: self.update_product_treeview())
+        self.store_product_search_var = tk.StringVar()  # For Продукти в магазині (UPC)
+        self.promotional_sort_var = tk.StringVar(value="кількість")  # For sorting promotional products
 
         # Mock data for the Treeviews
         self.mock_data = {
@@ -94,6 +94,13 @@ class DashboardView:
         for entity, columns in self.entity_columns.items():
             self.create_tab(self.notebook, entity, columns)
 
+        # Set up trace callbacks after tabs are created
+        self.search_var.trace("w", lambda *args: self.update_employee_treeview())
+        self.customer_search_var.trace("w", lambda *args: self.update_customer_treeview())
+        self.product_search_var.trace("w", lambda *args: self.update_product_treeview())
+        self.store_product_search_var.trace("w", lambda *args: self.update_store_product_treeview())
+        self.promotional_sort_var.trace("w", lambda *args: self.update_store_product_treeview())
+
     def create_tab(self, notebook, tab_text, columns):
         # Create a frame for the tab
         frame = tk.Frame(notebook)
@@ -130,6 +137,42 @@ class DashboardView:
             search_label.pack(side='left', padx=(5, 0))
             search_entry = tk.Entry(button_frame, textvariable=self.product_search_var, font=("Space Mono", 12))
             search_entry.pack(side='left', padx=(5, 10), fill='x', expand=True)
+
+        # Add search and filter functionality for Продукти в магазині tab
+        if tab_text == 'Продукти в магазині':
+            # Search bar for UPC
+            search_label = tk.Label(button_frame, text="Пошук (UPC):")
+            search_label.pack(side='left', padx=(5, 0))
+            search_entry = tk.Entry(button_frame, textvariable=self.store_product_search_var, font=("Space Mono", 12))
+            search_entry.pack(side='left', padx=(5, 10))
+
+            # Toggle button for promotional products
+            def toggle_promotional():
+                self.show_promotional_only = not self.show_promotional_only
+                toggle_button.config(
+                    text="Показати всі товари" if self.show_promotional_only else "Показати акційні товари"
+                )
+                self.update_store_product_treeview()
+
+            toggle_button = tk.Button(
+                button_frame,
+                text="Показати акційні товари",
+                font=("Space Mono", 12),
+                command=toggle_promotional
+            )
+            toggle_button.pack(side='left', padx=(5, 0))
+
+            # Sort option for promotional products
+            sort_label = tk.Label(button_frame, text="Сортувати за:")
+            sort_label.pack(side='left', padx=(10, 0))
+            sort_menu = ttk.OptionMenu(
+                button_frame,
+                self.promotional_sort_var,
+                "кількість",
+                "кількість",
+                "назва"
+            )
+            sort_menu.pack(side='left', padx=(5, 10))
 
         # Add the toggle button for cashiers (only for Працівники tab)
         if tab_text == 'Працівники':
@@ -214,6 +257,8 @@ class DashboardView:
             self.update_customer_treeview()
         elif tab_text == 'Продукти':
             self.update_product_treeview()
+        elif tab_text == 'Продукти в магазині':
+            self.update_store_product_treeview()
         else:
             update_treeview()
 
@@ -289,6 +334,47 @@ class DashboardView:
         for row in data:
             tree.insert("", "end", values=row)
 
+    def update_store_product_treeview(self):
+        """Update the Продукти в магазині Treeview with UPC search and promotional filter"""
+        tree = self.treeviews['Продукти в магазині']
+        tree.delete(*tree.get_children())  # Clear existing rows
+
+        # Get the search term
+        search_term = self.store_product_search_var.get().lower()
+        data = self.mock_data['Продукти в магазині']
+
+        # Apply UPC search filter (UPC is index 0)
+        if search_term:
+            data = [
+                row for row in data
+                if search_term in row[0].lower()
+            ]
+
+        # Apply promotional filter (акційнний товар is index 4)
+        if self.show_promotional_only:
+            data = [row for row in data if row[4] == 'Так']
+
+        # Join with Продукти to get the name and create display data
+        display_data = []
+        product_dict = {product[1]: product[0] for product in self.mock_data['Продукти']}  # id продукту -> назва
+        for row in data:
+            product_id = row[1]
+            product_name = product_dict.get(product_id, "Невідомий продукт")
+            # New row format: (UPC, id продукту, назва, ціна, наявність, акційнний товар)
+            display_row = (row[0], row[1], product_name, row[2], row[3], row[4])
+            display_data.append(display_row)
+
+        # Sort based on the selected option
+        sort_option = self.promotional_sort_var.get()
+        if sort_option == "кількість":
+            display_data.sort(key=lambda x: int(x[4]), reverse=True)  # Sort by наявність (index 4)
+        elif sort_option == "назва":
+            display_data.sort(key=lambda x: x[2])  # Sort by назва (index 2)
+
+        # Insert filtered and sorted data
+        for row in display_data:
+            tree.insert("", "end", values=row)
+
     def add_new_item(self, tab_name):
         """Handle adding a new item to the specified tab"""
         # Get the columns for this tab
@@ -322,6 +408,10 @@ class DashboardView:
             # Get values from all entry fields
             new_values = tuple(entry.get() for entry in values.values())
 
+            # Adjust for Продукти в магазині (exclude назва since it's derived)
+            if tab_name == 'Продукти в магазині':
+                new_values = (new_values[0], new_values[1], new_values[3], new_values[4], new_values[5])
+
             # Add the new item to the mock data
             self.mock_data[tab_name].append(new_values)
 
@@ -341,6 +431,8 @@ class DashboardView:
                 self.update_customer_treeview()
             elif tab_name == 'Продукти':
                 self.update_product_treeview()
+            elif tab_name == 'Продукти в магазині':
+                self.update_store_product_treeview()
             else:
                 tree = self.treeviews[tab_name]
                 tree.delete(*tree.get_children())  # Clear existing rows
@@ -388,6 +480,10 @@ class DashboardView:
             # Remove from treeview
             tree.delete(selected_item)
 
+            # Adjust for Продукти в магазині (exclude назва)
+            if tab_name == 'Продукти в магазині':
+                item_values = (item_values[0], item_values[1], item_values[3], item_values[4], item_values[5])
+
             # Remove from mock data
             item_values_tuple = tuple(item_values)
             if item_values_tuple in self.mock_data[tab_name]:
@@ -409,6 +505,8 @@ class DashboardView:
                 self.update_customer_treeview()
             elif tab_name == 'Продукти':
                 self.update_product_treeview()
+            elif tab_name == 'Продукти в магазині':
+                self.update_store_product_treeview()
             else:
                 tree.delete(*tree.get_children())  # Clear existing rows
                 data = self.mock_data[tab_name]
@@ -439,6 +537,11 @@ class DashboardView:
         if column_index >= len(columns):
             return
         column_name = columns[column_index]
+
+        # Prevent editing the 'назва' column in Продукти в магазині
+        if tab_name == 'Продукти в магазині' and column_name == 'назва':
+            messagebox.showinfo("Інформація", "Назва товару редагується в вкладці 'Продукти'.")
+            return
 
         # Get the current value
         current_value = tree.item(item, 'values')[column_index]
@@ -475,10 +578,16 @@ class DashboardView:
                 tree.item(item, values=values)
 
                 # Update in mock data (need to find and replace the tuple)
-                old_values_tuple = tuple(tree.item(item, 'values'))
-                if old_values_tuple in self.mock_data[tab_name]:
-                    index = self.mock_data[tab_name].index(old_values_tuple)
-                    self.mock_data[tab_name][index] = tuple(values)
+                if tab_name == 'Продукти в магазині':
+                    old_values = (values[0], values[1], values[3], values[4], values[5])
+                    new_values = (values[0], values[1], values[3], values[4], values[5])
+                else:
+                    old_values = tuple(tree.item(item, 'values'))
+                    new_values = tuple(values)
+
+                if old_values in self.mock_data[tab_name]:
+                    index = self.mock_data[tab_name].index(old_values)
+                    self.mock_data[tab_name][index] = new_values
 
                 # Sort if we're in the relevant tab and changed the relevant field
                 if (tab_name in ['Працівники', 'Постійні клієнти'] and column_name == 'прізвище') or \
@@ -497,6 +606,8 @@ class DashboardView:
                         self.update_customer_treeview()
                     elif tab_name == 'Продукти':
                         self.update_product_treeview()
+                    elif tab_name == 'Продукти в магазині':
+                        self.update_store_product_treeview()
                     else:
                         tree.delete(*tree.get_children())
                         data = self.mock_data[tab_name]
