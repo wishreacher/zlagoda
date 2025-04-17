@@ -6,9 +6,11 @@ from treeview_updater import (
     update_employee_treeview,
     update_customer_treeview,
     update_product_treeview,
-    update_store_product_treeview
+    update_store_product_treeview,
+    update_receipt_treeview,
+    update_receipt_reports
 )
-from item_operations import add_new_item, delete_selected_item, on_cell_double_click, sort_treeview
+from item_operations import add_new_item, delete_selected_item, on_cell_double_click, sort_treeview, show_receipt_items
 
 class DashboardView:
     show_cashiers_only = False  # Class variable to track the toggle state
@@ -19,10 +21,13 @@ class DashboardView:
     update_customer_treeview = update_customer_treeview
     update_product_treeview = update_product_treeview
     update_store_product_treeview = update_store_product_treeview
+    update_receipt_treeview = update_receipt_treeview
+    update_receipt_reports = update_receipt_reports
     add_new_item = add_new_item
     delete_selected_item = delete_selected_item
     on_cell_double_click = on_cell_double_click
     sort_treeview = sort_treeview
+    show_receipt_items = show_receipt_items
 
     def __init__(self, root, username):
         self.root = root
@@ -59,6 +64,7 @@ class DashboardView:
             'Категорії': ['назва', 'номер категорії'],
             'Працівники': ['id працівника', 'прізвище', 'імʼя', 'по-батькові', 'посада', 'зарплата', 'дата народження', 'дата початку', 'адреса'],
             'Постійні клієнти': ['номер картки', 'прізвище', 'імʼя', 'по-батькові', 'номер телефону', 'адреса', 'відсоток знижки'],
+            'Чеки': ['номер чеку', 'касир', 'дата', 'загальна сума'],
         }
 
         # Store treeviews for later reference
@@ -70,6 +76,10 @@ class DashboardView:
         self.product_search_var = tk.StringVar()  # For Продукти (id категорії)
         self.store_product_search_var = tk.StringVar()  # For Продукти в магазині (UPC)
         self.promotional_sort_var = tk.StringVar(value="кількість")  # For sorting promotional products
+        self.receipt_cashier_var = tk.StringVar()  # For Чеки (касир)
+        self.receipt_start_date_var = tk.StringVar()  # For Чеки (початкова дата)
+        self.receipt_end_date_var = tk.StringVar()  # For Чеки (кінцева дата)
+        self.receipt_product_var = tk.StringVar()  # For Чеки (UPC товару для підрахунку)
 
         # Load mock data
         self.mock_data = get_mock_data()
@@ -84,6 +94,10 @@ class DashboardView:
         self.product_search_var.trace("w", lambda *args: self.update_product_treeview())
         self.store_product_search_var.trace("w", lambda *args: self.update_store_product_treeview())
         self.promotional_sort_var.trace("w", lambda *args: self.update_store_product_treeview())
+        self.receipt_cashier_var.trace("w", lambda *args: self.update_receipt_treeview())
+        self.receipt_start_date_var.trace("w", lambda *args: self.update_receipt_treeview())
+        self.receipt_end_date_var.trace("w", lambda *args: self.update_receipt_treeview())
+        self.receipt_product_var.trace("w", lambda *args: self.update_receipt_reports())
 
     def create_tab(self, notebook, tab_text, columns):
         # Create a frame for the tab
@@ -158,6 +172,32 @@ class DashboardView:
             )
             sort_menu.pack(side='left', padx=(5, 10))
 
+        # Add search and filter functionality for Чеки tab
+        if tab_text == 'Чеки':
+            # Cashier filter
+            cashier_label = tk.Label(button_frame, text="Касир:")
+            cashier_label.pack(side='left', padx=(5, 0))
+            cashier_options = ["Всі касири"] + [worker[0] for worker in self.mock_data['Працівники'] if worker[4] == 'Касир']
+            cashier_menu = ttk.OptionMenu(
+                button_frame,
+                self.receipt_cashier_var,
+                cashier_options[0],
+                *cashier_options
+            )
+            cashier_menu.pack(side='left', padx=(5, 10))
+
+            # Start date filter
+            start_date_label = tk.Label(button_frame, text="Початкова дата (РРРР-ММ-ДД):")
+            start_date_label.pack(side='left', padx=(5, 0))
+            start_date_entry = tk.Entry(button_frame, textvariable=self.receipt_start_date_var, font=("Space Mono", 12), width=12)
+            start_date_entry.pack(side='left', padx=(5, 10))
+
+            # End date filter
+            end_date_label = tk.Label(button_frame, text="Кінцева дата (РРРР-ММ-ДД):")
+            end_date_label.pack(side='left', padx=(5, 0))
+            end_date_entry = tk.Entry(button_frame, textvariable=self.receipt_end_date_var, font=("Space Mono", 12), width=12)
+            end_date_entry.pack(side='left', padx=(5, 10))
+
         # Add the toggle button for cashiers (only for Працівники tab)
         if tab_text == 'Працівники':
             self.show_cashiers_only = False  # Toggle state
@@ -177,24 +217,25 @@ class DashboardView:
             )
             toggle_button.pack(side='left', padx=(5, 0))
 
-        # Add the + button (aligned right)
-        add_button = tk.Button(
-            button_frame,
-            text="+",
-            font=("Space Mono", 16, "bold"),
-            width=3,
-            command=lambda t=tab_text: self.add_new_item(t)
-        )
-        add_button.pack(side='right', padx=(5, 0))
+        # Add the + button (aligned right, exclude for Чеки)
+        if tab_text != 'Чеки':
+            add_button = tk.Button(
+                button_frame,
+                text="+",
+                font=("Space Mono", 16, "bold"),
+                width=3,
+                command=lambda t=tab_text: self.add_new_item(t)
+            )
+            add_button.pack(side='right', padx=(5, 0))
 
-        # Add delete button (aligned right)
-        delete_button = tk.Button(
-            button_frame,
-            text="Видалити",
-            font=("Space Mono", 12),
-            command=lambda t=tab_text: self.delete_selected_item(t)
-        )
-        delete_button.pack(side='right', padx=(5, 0))
+            # Add delete button (aligned right)
+            delete_button = tk.Button(
+                button_frame,
+                text="Видалити",
+                font=("Space Mono", 12),
+                command=lambda t=tab_text: self.delete_selected_item(t)
+            )
+            delete_button.pack(side='right', padx=(5, 0))
 
         # Create a frame for the treeview and scrollbars
         tree_frame = tk.Frame(container_frame)
@@ -225,6 +266,31 @@ class DashboardView:
         tree_frame.grid_rowconfigure(0, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
 
+        # Add reports section for Чеки tab
+        if tab_text == 'Чеки':
+            reports_frame = tk.Frame(container_frame)
+            reports_frame.pack(fill='x', pady=(5, 0))
+
+            # Product UPC for quantity calculation
+            product_label = tk.Label(reports_frame, text="UPC товару для підрахунку:")
+            product_label.pack(side='left', padx=(5, 0))
+            product_options = [""] + [item[0] for item in self.mock_data['Продукти в магазині']]
+            product_menu = ttk.OptionMenu(
+                reports_frame,
+                self.receipt_product_var,
+                product_options[0],
+                *product_options
+            )
+            product_menu.pack(side='left', padx=(5, 10))
+
+            # Total sales labels
+            self.total_sales_specific_label = tk.Label(reports_frame, text="Сума (вибраний касир): 0.00")
+            self.total_sales_specific_label.pack(side='left', padx=(10, 0))
+            self.total_sales_all_label = tk.Label(reports_frame, text="Сума (всі касири): 0.00")
+            self.total_sales_all_label.pack(side='left', padx=(10, 0))
+            self.total_quantity_label = tk.Label(reports_frame, text="Кількість товару (UPC не вибрано): 0")
+            self.total_quantity_label.pack(side='left', padx=(10, 0))
+
         # Function to update the Treeview (for tabs without search)
         def update_treeview():
             tree.delete(*tree.get_children())  # Clear existing rows
@@ -243,10 +309,12 @@ class DashboardView:
             self.update_product_treeview()
         elif tab_text == 'Продукти в магазині':
             self.update_store_product_treeview()
+        elif tab_text == 'Чеки':
+            self.update_receipt_treeview()
         else:
             update_treeview()
 
-        # Bind double-click event for editing cells
+        # Bind double-click event for editing cells or viewing receipt details
         tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
 
 if __name__ == "__main__":

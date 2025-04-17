@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 
 def add_new_item(self, tab_name):
     """Handle adding a new item to the specified tab"""
@@ -140,12 +140,21 @@ def delete_selected_item(self, tab_name):
                 tree.insert("", "end", values=row)
 
 def on_cell_double_click(self, event, tab_name):
-    """Handle double-click on a cell to edit its value"""
+    """Handle double-click on a cell to edit its value or view receipt details"""
     tree = self.treeviews[tab_name]
 
     # Get the clicked region (check if it's on a cell, not a header)
     region = tree.identify("region", event.x, event.y)
     if region != "cell":
+        return
+
+    # Special handling for Чеки tab to show purchased items
+    if tab_name == 'Чеки':
+        selected_item = tree.selection()
+        if not selected_item:
+            return
+        receipt_id = tree.item(selected_item, 'values')[0]
+        self.show_receipt_items(receipt_id)
         return
 
     # Get the item and column that was clicked
@@ -273,3 +282,59 @@ def sort_treeview(self, tab_name, column, column_index):
     # Rearrange items in the treeview
     for index, (values, item) in enumerate(data):
         tree.move(item, '', index)
+
+def show_receipt_items(self, receipt_id):
+    """Show the purchased items in a specific receipt"""
+    dialog = tk.Toplevel(self.root)
+    dialog.title(f"Товари в чеку {receipt_id}")
+    dialog.geometry("600x400")
+    dialog.transient(self.root)
+    dialog.grab_set()
+
+    # Create a frame for the treeview and scrollbars
+    tree_frame = tk.Frame(dialog)
+    tree_frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+    # Define columns
+    columns = ('назва', 'UPC', 'кількість', 'ціна за одиницю', 'загальна ціна')
+    tree = ttk.Treeview(tree_frame, columns=columns, show='headings')
+
+    # Set column headings
+    for col in columns:
+        tree.heading(col, text=col)
+        tree.column(col, width=120)
+
+    # Add scrollbars
+    v_scrollbar = tk.Scrollbar(tree_frame, orient='vertical', command=tree.yview)
+    h_scrollbar = tk.Scrollbar(tree_frame, orient='horizontal', command=tree.xview)
+    tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+
+    # Layout the Treeview and scrollbars using grid
+    tree.grid(row=0, column=0, sticky='nsew')
+    v_scrollbar.grid(row=0, column=1, sticky='ns')
+    h_scrollbar.grid(row=1, column=0, sticky='ew')
+
+    # Configure the frame to expand the Treeview
+    tree_frame.grid_rowconfigure(0, weight=1)
+    tree_frame.grid_columnconfigure(0, weight=1)
+
+    # Get purchased items
+    items = [item for item in self.mock_data['Товари в чеку'] if item[0] == receipt_id]
+    product_dict = {product[1]: product[0] for product in self.mock_data['Продукти']}  # id продукту -> назва
+    upc_to_product_id = {item[0]: item[1] for item in self.mock_data['Продукти в магазині']}  # UPC -> id продукту
+
+    # Populate the treeview
+    for item in items:
+        upc = item[1]
+        quantity = int(item[2])
+        price_per_unit = float(item[3])
+        total_price = quantity * price_per_unit
+        product_id = upc_to_product_id.get(upc, "Невідомий")
+        product_name = product_dict.get(product_id, "Невідомий продукт")
+        tree.insert("", "end", values=(product_name, upc, quantity, price_per_unit, total_price))
+
+    # Center the dialog
+    dialog.update_idletasks()
+    x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (dialog.winfo_width() // 2)
+    y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (dialog.winfo_height() // 2)
+    dialog.geometry(f"+{x}+{y}")
