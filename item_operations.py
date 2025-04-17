@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
+from datetime import datetime
 
 def add_new_item(self, tab_name):
     """Handle adding a new item to the specified tab"""
@@ -284,7 +285,7 @@ def sort_treeview(self, tab_name, column, column_index):
         tree.move(item, '', index)
 
 def show_receipt_items(self, receipt_id):
-    """Show the purchased items in a specific receipt"""
+    """Show the purchased items in a specific receipt (Req 11)"""
     dialog = tk.Toplevel(self.root)
     dialog.title(f"Товари в чеку {receipt_id}")
     dialog.geometry("600x400")
@@ -332,6 +333,175 @@ def show_receipt_items(self, receipt_id):
         product_id = upc_to_product_id.get(upc, "Невідомий")
         product_name = product_dict.get(product_id, "Невідомий продукт")
         tree.insert("", "end", values=(product_name, upc, quantity, price_per_unit, total_price))
+
+    # Center the dialog
+    dialog.update_idletasks()
+    x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (dialog.winfo_width() // 2)
+    y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (dialog.winfo_height() // 2)
+    dialog.geometry(f"+{x}+{y}")
+
+def sell_products(self):
+    """Handle product sales by creating a new receipt (Req 7)"""
+    dialog = tk.Toplevel(self.root)
+    dialog.title("Продаж товарів")
+    dialog.geometry("600x600")
+    dialog.transient(self.root)
+    dialog.grab_set()
+
+    # Frame for customer selection
+    customer_frame = tk.Frame(dialog)
+    customer_frame.pack(fill='x', padx=10, pady=(10, 5))
+
+    customer_label = tk.Label(customer_frame, text="Постійний клієнт (номер картки):")
+    customer_label.pack(side='left', padx=(5, 0))
+    customer_var = tk.StringVar()
+    customer_options = [""] + [customer[0] for customer in self.mock_data['Постійні клієнти']]
+    customer_menu = ttk.OptionMenu(customer_frame, customer_var, customer_options[0], *customer_options)
+    customer_menu.pack(side='left', padx=(5, 10))
+
+    # Frame for adding products
+    products_frame = tk.Frame(dialog)
+    products_frame.pack(fill='both', expand=True, padx=10, pady=5)
+
+    # List to store UPC and quantity entries
+    product_entries = []
+
+    def add_product_entry():
+        entry_frame = tk.Frame(products_frame)
+        entry_frame.pack(fill='x', pady=2)
+
+        upc_label = tk.Label(entry_frame, text="UPC:")
+        upc_label.pack(side='left', padx=(5, 0))
+        upc_entry = tk.Entry(entry_frame, font=("Space Mono", 12), width=15)
+        upc_entry.pack(side='left', padx=(5, 5))
+
+        qty_label = tk.Label(entry_frame, text="Кількість:")
+        qty_label.pack(side='left', padx=(5, 0))
+        qty_entry = tk.Entry(entry_frame, font=("Space Mono", 12), width=5)
+        qty_entry.pack(side='left', padx=(5, 5))
+
+        product_entries.append((entry_frame, upc_entry, qty_entry))
+
+    # Button to add more products
+    add_product_button = tk.Button(dialog, text="+ Додати товар", font=("Space Mono", 12), command=add_product_entry)
+    add_product_button.pack(pady=5)
+
+    # Add one product entry by default
+    add_product_entry()
+
+    # Total amount label
+    total_frame = tk.Frame(dialog)
+    total_frame.pack(fill='x', padx=10, pady=5)
+    total_label = tk.Label(total_frame, text="Загальна сума: 0.00")
+    total_label.pack()
+
+    def update_total():
+        total = 0.0
+        store_products = {item[0]: (float(item[2]), int(item[3])) for item in self.mock_data['Продукти в магазині']}  # UPC -> (price, quantity)
+        for _, upc_entry, qty_entry in product_entries:
+            upc = upc_entry.get()
+            qty = qty_entry.get()
+            if upc and qty:
+                try:
+                    qty = int(qty)
+                    if upc in store_products:
+                        price, available = store_products[upc]
+                        total += price * qty
+                except ValueError:
+                    pass
+        # Apply discount if customer selected
+        customer_id = customer_var.get()
+        if customer_id:
+            customer = next((c for c in self.mock_data['Постійні клієнти'] if c[0] == customer_id), None)
+            if customer:
+                discount = float(customer[6].rstrip('%')) / 100
+                total = total * (1 - discount)
+        total_label.config(text=f"Загальна сума: {total:.2f}")
+
+    # Bind updates to entries
+    for _, upc_entry, qty_entry in product_entries:
+        upc_entry.bind("<KeyRelease>", lambda e: update_total())
+        qty_entry.bind("<KeyRelease>", lambda e: update_total())
+    customer_var.trace("w", lambda *args: update_total())
+
+    # Function to save the sale
+    def save_sale():
+        # Validate entries and calculate total
+        store_products = {item[0]: (float(item[2]), int(item[3])) for item in self.mock_data['Продукти в магазині']}  # UPC -> (price, quantity)
+        items_to_sell = []
+        total = 0.0
+
+        for _, upc_entry, qty_entry in product_entries:
+            upc = upc_entry.get()
+            qty = qty_entry.get()
+            if not upc or not qty:
+                continue
+            try:
+                qty = int(qty)
+                if qty <= 0:
+                    messagebox.showerror("Помилка", "Кількість має бути більше 0")
+                    return
+                if upc not in store_products:
+                    messagebox.showerror("Помилка", f"Товар з UPC {upc} не знайдено")
+                    return
+                price, available = store_products[upc]
+                if qty > available:
+                    messagebox.showerror("Помилка", f"Недостатньо товару з UPC {upc}. Наявно: {available}")
+                    return
+                total += price * qty
+                items_to_sell.append((upc, qty, price))
+            except ValueError:
+                messagebox.showerror("Помилка", "Кількість має бути числом")
+                return
+
+        if not items_to_sell:
+            messagebox.showerror("Помилка", "Додайте принаймні один товар")
+            return
+
+        # Apply discount if customer selected
+        customer_id = customer_var.get()
+        if customer_id:
+            customer = next((c for c in self.mock_data['Постійні клієнти'] if c[0] == customer_id), None)
+            if customer:
+                discount = float(customer[6].rstrip('%')) / 100
+                total = total * (1 - discount)
+
+        # Generate receipt ID
+        existing_ids = [int(r[0][1:]) for r in self.mock_data['Чеки'] if r[0].startswith('R')]
+        new_id_num = max(existing_ids, default=0) + 1
+        receipt_id = f"R{new_id_num:03d}"
+
+        # Create receipt
+        receipt = (receipt_id, self.cashier_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), str(total))
+        self.mock_data['Чеки'].append(receipt)
+
+        # Add items to Товари в чеку
+        for upc, qty, price in items_to_sell:
+            self.mock_data['Товари в чеку'].append((receipt_id, upc, str(qty), str(price)))
+
+        # Update product quantities in store
+        for upc, qty, _ in items_to_sell:
+            for i, store_item in enumerate(self.mock_data['Продукти в магазині']):
+                if store_item[0] == upc:
+                    new_qty = int(store_item[3]) - qty
+                    self.mock_data['Продукти в магазині'][i] = (store_item[0], store_item[1], store_item[2], str(new_qty), store_item[4])
+                    break
+
+        # Sort receipts by date
+        self.mock_data['Чеки'].sort(key=lambda x: x[2], reverse=True)
+        self.mock_data['Продукти в магазині'].sort(key=lambda x: int(x[3]), reverse=True)
+
+        # Update relevant Treeviews
+        self.update_cashier_store_product_treeview()
+        self.update_cashier_receipt_treeview()
+
+        # Close the dialog
+        dialog.destroy()
+        messagebox.showinfo("Успіх", f"Продаж виконано! Номер чеку: {receipt_id}")
+
+    # Save button
+    save_button = tk.Button(dialog, text="Завершити продаж", font=("Space Mono", 12), command=save_sale)
+    save_button.pack(pady=10)
 
     # Center the dialog
     dialog.update_idletasks()
