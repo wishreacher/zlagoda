@@ -45,9 +45,13 @@ class DashboardView:
         # Store treeviews for later reference
         self.treeviews = {}
 
-        # Store search term for Працівники tab
-        self.search_var = tk.StringVar()
+        # Store search terms for each tab
+        self.search_var = tk.StringVar()  # For Працівники (прізвище)
         self.search_var.trace("w", lambda *args: self.update_employee_treeview())
+        self.customer_search_var = tk.StringVar()  # For Постійні клієнти (відсоток знижки)
+        self.customer_search_var.trace("w", lambda *args: self.update_customer_treeview())
+        self.product_search_var = tk.StringVar()  # For Продукти (id категорії)
+        self.product_search_var.trace("w", lambda *args: self.update_product_treeview())
 
         # Mock data for the Treeviews
         self.mock_data = {
@@ -105,10 +109,26 @@ class DashboardView:
 
         # Add search functionality for Працівники tab
         if tab_text == 'Працівники':
-            # Search bar
+            # Search bar for прізвище
             search_label = tk.Label(button_frame, text="Пошук (прізвище):")
             search_label.pack(side='left', padx=(5, 0))
             search_entry = tk.Entry(button_frame, textvariable=self.search_var, font=("Space Mono", 12))
+            search_entry.pack(side='left', padx=(5, 10), fill='x', expand=True)
+
+        # Add search functionality for Постійні клієнти tab
+        if tab_text == 'Постійні клієнти':
+            # Search bar for відсоток знижки
+            search_label = tk.Label(button_frame, text="Пошук (відсоток знижки ≥):")
+            search_label.pack(side='left', padx=(5, 0))
+            search_entry = tk.Entry(button_frame, textvariable=self.customer_search_var, font=("Space Mono", 12))
+            search_entry.pack(side='left', padx=(5, 10), fill='x', expand=True)
+
+        # Add search functionality for Продукти tab
+        if tab_text == 'Продукти':
+            # Search bar for id категорії
+            search_label = tk.Label(button_frame, text="Пошук (id категорії):")
+            search_label.pack(side='left', padx=(5, 0))
+            search_entry = tk.Entry(button_frame, textvariable=self.product_search_var, font=("Space Mono", 12))
             search_entry.pack(side='left', padx=(5, 10), fill='x', expand=True)
 
         # Add the toggle button for cashiers (only for Працівники tab)
@@ -178,7 +198,7 @@ class DashboardView:
         tree_frame.grid_rowconfigure(0, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
 
-        # Function to update the Treeview based on the toggle state (for non-Працівники tabs)
+        # Function to update the Treeview (for tabs without search)
         def update_treeview():
             tree.delete(*tree.get_children())  # Clear existing rows
             data = self.mock_data.get(tab_text, [])
@@ -187,11 +207,15 @@ class DashboardView:
             for row in data:
                 tree.insert("", "end", values=row)
 
-        # Use the general update function for non-Працівники tabs
-        if tab_text != 'Працівники':
-            update_treeview()
-        else:
+        # Use the appropriate update function for each tab
+        if tab_text == 'Працівники':
             self.update_employee_treeview()
+        elif tab_text == 'Постійні клієнти':
+            self.update_customer_treeview()
+        elif tab_text == 'Продукти':
+            self.update_product_treeview()
+        else:
+            update_treeview()
 
         # Bind double-click event for editing cells
         tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
@@ -214,6 +238,51 @@ class DashboardView:
             data = [
                 row for row in data
                 if search_term in row[1].lower()
+            ]
+
+        # Insert filtered data
+        for row in data:
+            tree.insert("", "end", values=row)
+
+    def update_customer_treeview(self):
+        """Update the Постійні клієнти Treeview with discount percentage filter"""
+        tree = self.treeviews['Постійні клієнти']
+        tree.delete(*tree.get_children())  # Clear existing rows
+
+        # Get the search term
+        search_term = self.customer_search_var.get()
+        data = self.mock_data['Постійні клієнти']
+
+        # Apply discount filter (відсоток знижки is index 6)
+        if search_term:
+            try:
+                search_discount = float(search_term)
+                data = [
+                    row for row in data
+                    if float(row[6].rstrip('%')) >= search_discount
+                ]
+            except ValueError:
+                # If the input is not a valid number, show all data
+                pass
+
+        # Insert filtered data
+        for row in data:
+            tree.insert("", "end", values=row)
+
+    def update_product_treeview(self):
+        """Update the Продукти Treeview with category ID filter"""
+        tree = self.treeviews['Продукти']
+        tree.delete(*tree.get_children())  # Clear existing rows
+
+        # Get the search term
+        search_term = self.product_search_var.get().lower()
+        data = self.mock_data['Продукти']
+
+        # Apply category ID filter (id категорії is index 2)
+        if search_term:
+            data = [
+                row for row in data
+                if search_term == row[2].lower()
             ]
 
         # Insert filtered data
@@ -268,6 +337,10 @@ class DashboardView:
             # Update the Treeview
             if tab_name == 'Працівники':
                 self.update_employee_treeview()
+            elif tab_name == 'Постійні клієнти':
+                self.update_customer_treeview()
+            elif tab_name == 'Продукти':
+                self.update_product_treeview()
             else:
                 tree = self.treeviews[tab_name]
                 tree.delete(*tree.get_children())  # Clear existing rows
@@ -332,6 +405,10 @@ class DashboardView:
             # Update the Treeview
             if tab_name == 'Працівники':
                 self.update_employee_treeview()
+            elif tab_name == 'Постійні клієнти':
+                self.update_customer_treeview()
+            elif tab_name == 'Продукти':
+                self.update_product_treeview()
             else:
                 tree.delete(*tree.get_children())  # Clear existing rows
                 data = self.mock_data[tab_name]
@@ -416,6 +493,10 @@ class DashboardView:
                         self.mock_data[tab_name].sort(key=lambda x: x[1])
                     if tab_name == 'Працівники':
                         self.update_employee_treeview()
+                    elif tab_name == 'Постійні клієнти':
+                        self.update_customer_treeview()
+                    elif tab_name == 'Продукти':
+                        self.update_product_treeview()
                     else:
                         tree.delete(*tree.get_children())
                         data = self.mock_data[tab_name]
