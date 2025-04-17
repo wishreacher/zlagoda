@@ -45,6 +45,10 @@ class DashboardView:
         # Store treeviews for later reference
         self.treeviews = {}
 
+        # Store search term for Працівники tab
+        self.search_var = tk.StringVar()
+        self.search_var.trace("w", lambda *args: self.update_employee_treeview())
+
         # Mock data for the Treeviews
         self.mock_data = {
             'Продукти': [
@@ -77,6 +81,10 @@ class DashboardView:
         self.mock_data['Постійні клієнти'].sort(key=lambda x: x[1])
         # Sort mock data for Категорії by назва (index 0)
         self.mock_data['Категорії'].sort(key=lambda x: x[0])
+        # Sort mock data for Продукти by назва (index 0)
+        self.mock_data['Продукти'].sort(key=lambda x: x[0])
+        # Sort mock data for Продукти в магазині by наявність (index 3, descending)
+        self.mock_data['Продукти в магазині'].sort(key=lambda x: int(x[3]), reverse=True)
 
         # Create tabs for each entity
         for entity, columns in self.entity_columns.items():
@@ -95,6 +103,14 @@ class DashboardView:
         button_frame = tk.Frame(container_frame)
         button_frame.pack(side='top', fill='x', pady=(0, 5))
 
+        # Add search functionality for Працівники tab
+        if tab_text == 'Працівники':
+            # Search bar
+            search_label = tk.Label(button_frame, text="Пошук (прізвище):")
+            search_label.pack(side='left', padx=(5, 0))
+            search_entry = tk.Entry(button_frame, textvariable=self.search_var, font=("Space Mono", 12))
+            search_entry.pack(side='left', padx=(5, 10), fill='x', expand=True)
+
         # Add the toggle button for cashiers (only for Працівники tab)
         if tab_text == 'Працівники':
             self.show_cashiers_only = False  # Toggle state
@@ -104,7 +120,7 @@ class DashboardView:
                 toggle_button.config(
                     text="Показати всіх" if self.show_cashiers_only else "Показати касирів"
                 )
-                update_treeview()
+                self.update_employee_treeview()
 
             toggle_button = tk.Button(
                 button_frame,
@@ -162,7 +178,7 @@ class DashboardView:
         tree_frame.grid_rowconfigure(0, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
 
-        # Function to update the Treeview based on the toggle state
+        # Function to update the Treeview based on the toggle state (for non-Працівники tabs)
         def update_treeview():
             tree.delete(*tree.get_children())  # Clear existing rows
             data = self.mock_data.get(tab_text, [])
@@ -171,11 +187,38 @@ class DashboardView:
             for row in data:
                 tree.insert("", "end", values=row)
 
-        # Insert initial data into the Treeview
-        update_treeview()
+        # Use the general update function for non-Працівники tabs
+        if tab_text != 'Працівники':
+            update_treeview()
+        else:
+            self.update_employee_treeview()
 
         # Bind double-click event for editing cells
         tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
+
+    def update_employee_treeview(self):
+        """Update the Працівники Treeview with search and cashier filters"""
+        tree = self.treeviews['Працівники']
+        tree.delete(*tree.get_children())  # Clear existing rows
+
+        # Get the search term
+        search_term = self.search_var.get().lower()
+        data = self.mock_data['Працівники']
+
+        # Apply cashier filter
+        if self.show_cashiers_only:
+            data = [row for row in data if row[4] == 'Касир']
+
+        # Apply search filter (прізвище is index 1)
+        if search_term:
+            data = [
+                row for row in data
+                if search_term in row[1].lower()
+            ]
+
+        # Insert filtered data
+        for row in data:
+            tree.insert("", "end", values=row)
 
     def add_new_item(self, tab_name):
         """Handle adding a new item to the specified tab"""
@@ -213,21 +256,24 @@ class DashboardView:
             # Add the new item to the mock data
             self.mock_data[tab_name].append(new_values)
 
-            # Sort the mock data if it's Працівники, Постійні клієнти, or Категорії
-            if tab_name in ['Працівники', 'Постійні клієнти', 'Категорії']:
-                if tab_name == 'Категорії':
+            # Sort the mock data if it's Працівники, Постійні клієнти, Категорії, Продукти, or Продукти в магазині
+            if tab_name in ['Працівники', 'Постійні клієнти', 'Категорії', 'Продукти', 'Продукти в магазині']:
+                if tab_name == 'Категорії' or tab_name == 'Продукти':
                     self.mock_data[tab_name].sort(key=lambda x: x[0])
+                elif tab_name == 'Продукти в магазині':
+                    self.mock_data[tab_name].sort(key=lambda x: int(x[3]), reverse=True)
                 else:
                     self.mock_data[tab_name].sort(key=lambda x: x[1])
 
             # Update the Treeview
-            tree = self.treeviews[tab_name]
-            tree.delete(*tree.get_children())  # Clear existing rows
-            data = self.mock_data[tab_name]
-            if self.show_cashiers_only and tab_name == 'Працівники':
-                data = [row for row in data if row[4] == 'Касир']
-            for row in data:
-                tree.insert("", "end", values=row)
+            if tab_name == 'Працівники':
+                self.update_employee_treeview()
+            else:
+                tree = self.treeviews[tab_name]
+                tree.delete(*tree.get_children())  # Clear existing rows
+                data = self.mock_data[tab_name]
+                for row in data:
+                    tree.insert("", "end", values=row)
 
             # Close the dialog
             dialog.destroy()
@@ -274,20 +320,23 @@ class DashboardView:
             if item_values_tuple in self.mock_data[tab_name]:
                 self.mock_data[tab_name].remove(item_values_tuple)
 
-            # Sort the mock data if it's Працівники, Постійні клієнти, or Категорії
-            if tab_name in ['Працівники', 'Постійні клієнти', 'Категорії']:
-                if tab_name == 'Категорії':
+            # Sort the mock data if it's Працівники, Постійні клієнти, Категорії, Продукти, or Продукти в магазині
+            if tab_name in ['Працівники', 'Постійні клієнти', 'Категорії', 'Продукти', 'Продукти в магазині']:
+                if tab_name == 'Категорії' or tab_name == 'Продукти':
                     self.mock_data[tab_name].sort(key=lambda x: x[0])
+                elif tab_name == 'Продукти в магазині':
+                    self.mock_data[tab_name].sort(key=lambda x: int(x[3]), reverse=True)
                 else:
                     self.mock_data[tab_name].sort(key=lambda x: x[1])
 
             # Update the Treeview
-            tree.delete(*tree.get_children())  # Clear existing rows
-            data = self.mock_data[tab_name]
-            if self.show_cashiers_only and tab_name == 'Працівники':
-                data = [row for row in data if row[4] == 'Касир']
-            for row in data:
-                tree.insert("", "end", values=row)
+            if tab_name == 'Працівники':
+                self.update_employee_treeview()
+            else:
+                tree.delete(*tree.get_children())  # Clear existing rows
+                data = self.mock_data[tab_name]
+                for row in data:
+                    tree.insert("", "end", values=row)
 
     def on_cell_double_click(self, event, tab_name):
         """Handle double-click on a cell to edit its value"""
@@ -354,18 +403,24 @@ class DashboardView:
                     index = self.mock_data[tab_name].index(old_values_tuple)
                     self.mock_data[tab_name][index] = tuple(values)
 
-                # Sort if we're in the Працівники, Постійні клієнти, or Категорії tab and changed the relevant field
-                if (tab_name in ['Працівники', 'Постійні клієнти'] and column_name == 'прізвище') or (tab_name == 'Категорії' and column_name == 'назва'):
-                    if tab_name == 'Категорії':
+                # Sort if we're in the relevant tab and changed the relevant field
+                if (tab_name in ['Працівники', 'Постійні клієнти'] and column_name == 'прізвище') or \
+                   (tab_name == 'Категорії' and column_name == 'назва') or \
+                   (tab_name == 'Продукти' and column_name == 'назва') or \
+                   (tab_name == 'Продукти в магазині' and column_name == 'наявність'):
+                    if tab_name == 'Категорії' or tab_name == 'Продукти':
                         self.mock_data[tab_name].sort(key=lambda x: x[0])
+                    elif tab_name == 'Продукти в магазині':
+                        self.mock_data[tab_name].sort(key=lambda x: int(x[3]), reverse=True)
                     else:
                         self.mock_data[tab_name].sort(key=lambda x: x[1])
-                    tree.delete(*tree.get_children())
-                    data = self.mock_data[tab_name]
-                    if self.show_cashiers_only and tab_name == 'Працівники':
-                        data = [row for row in data if row[4] == 'Касир']
-                    for row in data:
-                        tree.insert("", "end", values=row)
+                    if tab_name == 'Працівники':
+                        self.update_employee_treeview()
+                    else:
+                        tree.delete(*tree.get_children())
+                        data = self.mock_data[tab_name]
+                        for row in data:
+                            tree.insert("", "end", values=row)
 
             edit_dialog.destroy()
 
