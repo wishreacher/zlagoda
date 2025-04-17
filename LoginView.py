@@ -112,9 +112,9 @@ class LoginPage:
     def open_manager_dashboard(self, username):
         """Open the manager dashboard"""
         self.root.destroy()
-        from ManagerDashboard import DashboardView
+        from ManagerDashboard import ManagerDashboard
         dashboard_root = tk.Tk()
-        dashboard_app = DashboardView(dashboard_root, username)
+        dashboard_app = ManagerDashboard(dashboard_root, username)
         dashboard_root.mainloop()
 
 # Only run this if the file is executed directly (not imported)
