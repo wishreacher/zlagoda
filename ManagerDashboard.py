@@ -1,6 +1,6 @@
 import tkinter as tk
 import tkinter.ttk as ttk
-from tkinter import font
+from tkinter import font, messagebox
 from database import Database
 from treeview_updater import (
     update_employee_treeview,
@@ -11,6 +11,9 @@ from treeview_updater import (
     update_receipt_reports
 )
 from item_operations import add_new_item, delete_selected_item, on_cell_double_click, show_receipt_items
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from datetime import datetime
 
 class ManagerDashboard:
     show_cashiers_only = False  # Class variable to track the toggle state
@@ -116,6 +119,25 @@ class ManagerDashboard:
         # Create a button frame for the top
         button_frame = tk.Frame(container_frame)
         button_frame.pack(side='top', fill='x', pady=(0, 5))
+
+        # Add "Друк звіту" button for all tabs except 'Чеки'
+        if tab_text != 'Чеки':
+            export_button = tk.Button(
+                button_frame,
+                text="Друк звіту",
+                font=("Space Mono", 12),
+                command=lambda t=tab_text: self.export_report(t)
+            )
+            export_button.pack(side='right', padx=(5, 0))
+        else:
+            # Add "Друк деталей чеку" button for 'Чеки' tab
+            export_receipt_button = tk.Button(
+                button_frame,
+                text="Друк деталей чеку",
+                font=("Space Mono", 12),
+                command=lambda: self.export_receipt_details()
+            )
+            export_receipt_button.pack(side='right', padx=(5, 0))
 
         # Add search functionality for Працівники tab
         if tab_text == 'Працівники':
@@ -320,6 +342,64 @@ class ManagerDashboard:
 
         # Bind double-click event for editing cells or viewing receipt details
         tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
+
+    def export_report(self, tab_name):
+        """Експортує дані з Treeview у PDF-звіт."""
+        tree = self.treeviews[tab_name]
+        columns = self.entity_columns[tab_name]
+        data = [tree.item(item, 'values') for item in tree.get_children()]
+
+        filename = f"report_{tab_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        c = canvas.Canvas(filename, pagesize=A4)
+        y = 800
+        c.setFont("Courier", 12)
+        c.drawString(100, y, f"Звіт: {tab_name}")
+        y -= 20
+        c.drawString(100, y, ", ".join(columns))
+        y -= 20
+        for row in data:
+            c.drawString(100, y, ", ".join(str(val) for val in row))
+            y -= 20
+            if y < 50:
+                c.showPage()
+                y = 800
+        c.save()
+        messagebox.showinfo("Успіх", f"Звіт збережено як {filename}")
+
+    def export_receipt_details(self):
+        """Експортує деталі вибраного чеку у PDF."""
+        tree = self.treeviews['Чеки']
+        selected_item = tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Попередження", "Виберіть чек для друку")
+            return
+        check_number = tree.item(selected_item, 'values')[0]
+
+        items = self.db.fetch_filtered(
+            """
+            SELECT p.product_name, s.UPC, s.product_number, s.selling_price, (s.product_number * s.selling_price)
+            FROM Sale s JOIN Store_Product sp ON s.UPC = sp.UPC
+            JOIN Product p ON sp.id_product = p.id_product WHERE s.check_number = ?
+            """,
+            (check_number,)
+        )
+
+        filename = f"receipt_{check_number}.pdf"
+        c = canvas.Canvas(filename, pagesize=A4)
+        y = 800
+        c.setFont("Helvetica", 12)
+        c.drawString(100, y, f"Чек: {check_number}")
+        y -= 20
+        c.drawString(100, y, "Товар, UPC, Кількість, Ціна, Сума")
+        y -= 20
+        for item in items:
+            c.drawString(100, y, ", ".join(str(val) for val in item))
+            y -= 20
+            if y < 50:
+                c.showPage()
+                y = 800
+        c.save()
+        messagebox.showinfo("Успіх", f"Деталі чеку збережено як {filename}")
 
 if __name__ == "__main__":
     root = tk.Tk()
