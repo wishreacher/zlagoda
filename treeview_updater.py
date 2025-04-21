@@ -10,7 +10,7 @@ def update_cashier_product_treeview(self):
     name_search = self.cashier_product_name_var.get().lower()
     category_search = self.cashier_product_category_var.get()
 
-    query = "SELECT id_product, Рекомендуємо product_name, category_number, characteristics FROM Product"
+    query = "SELECT id_product, product_name, category_number, characteristics FROM Product"
     conditions = []
     params = []
 

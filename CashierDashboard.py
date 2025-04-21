@@ -1,6 +1,6 @@
 import tkinter as tk
 import tkinter.ttk as ttk
-from tkinter import font
+from tkinter import font, messagebox
 from database import Database
 from treeview_updater import (
     update_cashier_product_treeview,
@@ -9,6 +9,8 @@ from treeview_updater import (
     update_cashier_receipt_treeview,
 )
 from item_operations import add_new_item, delete_selected_item, on_cell_double_click, show_receipt_items, sell_products
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 class DashboardView:
     cashier_show_promotional_only = False
@@ -82,7 +84,6 @@ class DashboardView:
         self.cashier_receipt_start_date_var.trace("w", lambda *args: self.update_cashier_receipt_treeview())
         self.cashier_receipt_end_date_var.trace("w", lambda *args: self.update_cashier_receipt_treeview())
 
-        # Bind the window close event to properly close the database connection
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def on_closing(self):
@@ -164,6 +165,14 @@ class DashboardView:
             end_date_entry = tk.Entry(button_frame, textvariable=self.cashier_receipt_end_date_var, font=("Space Mono", 12), width=12)
             end_date_entry.pack(side='left', padx=(5, 10))
 
+            print_button = tk.Button(
+                button_frame,
+                text="Print Receipt",
+                font=("Space Mono", 12),
+                command=self.print_receipt
+            )
+            print_button.pack(side='right', padx=(5, 0))
+
         if tab_text == 'Customer_Card':
             add_button = tk.Button(button_frame, text="+", font=("Space Mono", 16, "bold"), width=3, command=lambda t=tab_text: self.add_new_item(t))
             add_button.pack(side='right', padx=(5, 0))
@@ -201,6 +210,66 @@ class DashboardView:
             self.update_cashier_receipt_treeview()
 
         tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
+
+    def transliterate(self, text):
+        translit_dict = {
+            'а': 'a', 'б': 'b', 'в': 'v', 'г': 'h', 'ґ': 'g', 'д': 'd', 'е': 'e', 'є': 'ye', 'ж': 'zh', 'з': 'z',
+            'и': 'y', 'і': 'i', 'ї': 'yi', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p',
+            'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
+            'ь': '', 'ю': 'yu', 'я': 'ya',
+            'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'H', 'Ґ': 'G', 'Д': 'D', 'Е': 'E', 'Є': 'Ye', 'Ж': 'Zh', 'З': 'Z',
+            'И': 'Y', 'І': 'I', 'Ї': 'Yi', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N', 'О': 'O', 'П': 'P',
+            'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U', 'Ф': 'F', 'Х': 'Kh', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Shch',
+            'Ь': '', 'Ю': 'Yu', 'Я': 'Ya',
+        }
+        return ''.join(translit_dict.get(char, char) for char in text)
+
+    def print_receipt(self):
+        """Generate a PDF report for the selected receipt"""
+        tree = self.treeviews['Check']
+        selected_item = tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Warning", "Please select a receipt to print")
+            return
+
+        check_number = tree.item(selected_item, 'values')[0]
+
+        items = self.db.fetch_filtered(
+            """
+            SELECT p.product_name, s.UPC, s.product_number, s.selling_price, (s.product_number * s.selling_price)
+            FROM Sale s 
+            JOIN Store_Product sp ON s.UPC = sp.UPC
+            JOIN Product p ON sp.id_product = p.id_product 
+            WHERE s.check_number = ?
+            """,
+            (check_number,)
+        )
+
+        if not items:
+            messagebox.showerror("Error", "No items found for this receipt")
+            return
+
+        filename = f"receipt_{check_number}.pdf"
+        c = canvas.Canvas(filename, pagesize=A4)
+        c.setFont("Helvetica", 12)
+        y = 800
+
+        c.drawString(100, y, f"Receipt Number: {check_number}")
+        y -= 20
+        c.drawString(100, y, "Product Name, UPC, Quantity, Price, Total")
+        y -= 20
+
+        for item in items:
+            product_name_translit = self.transliterate(item[0])
+            line = f"{product_name_translit}, {item[1]}, {item[2]}, {item[3]}, {item[4]}"
+            c.drawString(100, y, line)
+            y -= 20
+            if y < 50:
+                c.showPage()
+                y = 800
+
+        c.save()
+        messagebox.showinfo("Success", f"Receipt saved as {filename}")
 
 if __name__ == "__main__":
     root = tk.Tk()
