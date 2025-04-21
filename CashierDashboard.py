@@ -11,6 +11,7 @@ from treeview_updater import (
 from item_operations import add_new_item, delete_selected_item, on_cell_double_click, show_receipt_items, sell_products
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+import datetime
 
 class DashboardView:
     cashier_show_promotional_only = False
@@ -173,6 +174,22 @@ class DashboardView:
             )
             print_button.pack(side='right', padx=(5, 0))
 
+            details_button = tk.Button(
+                button_frame,
+                text="View Details",
+                font=("Space Mono", 12),
+                command=lambda: self.show_receipt_details(self.treeviews['Check'])
+            )
+            details_button.pack(side='right', padx=(5, 0))
+
+            today_button = tk.Button(
+                button_frame,
+                text="Show Today's Receipts",
+                font=("Space Mono", 12),
+                command=self.show_today_receipts
+            )
+            today_button.pack(side='right', padx=(5, 0))
+
         if tab_text == 'Customer_Card':
             add_button = tk.Button(button_frame, text="+", font=("Space Mono", 16, "bold"), width=3, command=lambda t=tab_text: self.add_new_item(t))
             add_button.pack(side='right', padx=(5, 0))
@@ -209,7 +226,73 @@ class DashboardView:
         elif tab_text == 'Check':
             self.update_cashier_receipt_treeview()
 
-        tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
+        if tab_text != 'Check':
+            tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
+
+    def show_receipt_details(self, tree):
+        """Display detailed information about the selected receipt in a new window"""
+        selected_item = tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Warning", "Please select a receipt to view details")
+            return
+
+        check_number = tree.item(selected_item, 'values')[0]
+
+        # Fetch basic receipt info
+        check_info = self.db.fetch_filtered("SELECT * FROM [Check] WHERE check_number = ?", (check_number,))
+        if not check_info:
+            messagebox.showerror("Error", "Receipt not found")
+            return
+
+        check_info = check_info[0]
+        cashier_id = check_info[1]
+        print_date = check_info[3]
+        sum_total = check_info[4]
+
+        # Fetch items in the receipt
+        items = self.db.fetch_filtered(
+            """
+            SELECT p.product_name, s.UPC, s.product_number, s.selling_price, (s.product_number * s.selling_price)
+            FROM Sale s 
+            JOIN Store_Product sp ON s.UPC = sp.UPC
+            JOIN Product p ON sp.id_product = p.id_product 
+            WHERE s.check_number = ?
+            """,
+            (check_number,)
+        )
+
+        if not items:
+            messagebox.showerror("Error", "No items found for this receipt")
+            return
+
+        # Create a new window for receipt details
+        details_window = tk.Toplevel(self.root)
+        details_window.title(f"Receipt Details: {check_number}")
+        details_window.geometry("600x400")
+
+        # Display basic receipt info with corrected sum_total formatting
+        info_label = tk.Label(details_window, text=f"Receipt Number: {check_number}\nCashier ID: {cashier_id}\nPrint Date: {print_date}\nTotal Sum: {sum_total:.2f}" if isinstance(sum_total, float) else f"Receipt Number: {check_number}\nCashier ID: {cashier_id}\nPrint Date: {print_date}\nTotal Sum: {sum_total}")
+        info_label.pack(pady=10)
+
+        # Create a table for items
+        columns = ['Product Name', 'UPC', 'Quantity', 'Price', 'Total']
+        item_tree = ttk.Treeview(details_window, columns=columns, show='headings')
+        for col in columns:
+            item_tree.heading(col, text=col)
+            item_tree.column(col, width=100)
+
+        # Populate the table with items
+        for item in items:
+            item_tree.insert('', 'end', values=item)
+
+        item_tree.pack(fill='both', expand=True)
+
+
+    def show_today_receipts(self):
+        """Set the start and end date filters to today's date to show all receipts for today"""
+        today = datetime.date.today().strftime("%Y-%m-%d")
+        self.cashier_receipt_start_date_var.set(today)
+        self.cashier_receipt_end_date_var.set(today)
 
     def transliterate(self, text):
         translit_dict = {
