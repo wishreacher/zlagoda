@@ -344,18 +344,59 @@ class ManagerDashboard:
         tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
 
     def export_report(self, tab_name):
-        """Експортує дані з Treeview у PDF-звіт."""
+        # Транслітерація назви вкладки
+        tab_name_en = {
+            'Продукти': 'Products',
+            'Продукти в магазині': 'Store Products',
+            'Категорії': 'Categories',
+            'Працівники': 'Employees',
+            'Постійні клієнти': 'Customers',
+            'Чеки': 'Receipts'
+        }.get(tab_name, tab_name)
+
         tree = self.treeviews[tab_name]
+        # Транслітерація заголовків стовпців
         columns = self.entity_columns[tab_name]
+        columns_en = []
+        for col in columns:
+            col_en = {
+                'назва': 'Name',
+                'id продукту': 'Product ID',
+                'id категорії': 'Category ID',
+                'Опис': 'Description',
+                'UPC': 'UPC',
+                'ціна': 'Price',
+                'наявність': 'Quantity',
+                'акційнний товар': 'Promotional',
+                'номер категорії': 'Category Number',
+                'id працівника': 'Employee ID',
+                'прізвище': 'Surname',
+                'імʼя': 'Name',
+                'по-батькові': 'Patronymic',
+                'посада': 'Role',
+                'зарплата': 'Salary',
+                'дата народження': 'Birth Date',
+                'дата початку': 'Start Date',
+                'адреса': 'Address',
+                'номер картки': 'Card Number',
+                'номер телефону': 'Phone',
+                'відсоток знижки': 'Discount Percent',
+                'номер чеку': 'Receipt Number',
+                'касир': 'Cashier',
+                'дата': 'Date',
+                'загальна сума': 'Total Sum'
+            }.get(col, col)
+            columns_en.append(col_en)
+
         data = [tree.item(item, 'values') for item in tree.get_children()]
 
         filename = f"report_{tab_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         c = canvas.Canvas(filename, pagesize=A4)
         y = 800
-        c.setFont("Courier", 12)
-        c.drawString(100, y, f"Звіт: {tab_name}")
+        c.setFont("Helvetica", 12)
+        c.drawString(100, y, f"Report: {tab_name_en}")
         y -= 20
-        c.drawString(100, y, ", ".join(columns))
+        c.drawString(100, y, ", ".join(columns_en))
         y -= 20
         for row in data:
             c.drawString(100, y, ", ".join(str(val) for val in row))
@@ -364,7 +405,41 @@ class ManagerDashboard:
                 c.showPage()
                 y = 800
         c.save()
-        messagebox.showinfo("Успіх", f"Звіт збережено як {filename}")
+        messagebox.showinfo("Success", f"Report saved as {filename}")
+
+    def export_receipt_details(self):
+        tree = self.treeviews['Чеки']
+        selected_item = tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Warning", "Select a receipt to print")
+            return
+        check_number = tree.item(selected_item, 'values')[0]
+
+        items = self.db.fetch_filtered(
+            """
+            SELECT p.product_name, s.UPC, s.product_number, s.selling_price, (s.product_number * s.selling_price)
+            FROM Sale s JOIN Store_Product sp ON s.UPC = sp.UPC
+            JOIN Product p ON sp.id_product = p.id_product WHERE s.check_number = ?
+            """,
+            (check_number,)
+        )
+
+        filename = f"receipt_{check_number}.pdf"
+        c = canvas.Canvas(filename, pagesize=A4)
+        y = 800
+        c.setFont("Helvetica", 12)  # Використовуємо вбудований шрифт Helvetica
+        c.drawString(100, y, f"Receipt: {check_number}")
+        y -= 20
+        c.drawString(100, y, "Product, UPC, Quantity, Price, Total")
+        y -= 20
+        for item in items:
+            c.drawString(100, y, ", ".join(str(val) for val in item))
+            y -= 20
+            if y < 50:
+                c.showPage()
+                y = 800
+        c.save()
+        messagebox.showinfo("Success", f"Receipt details saved as {filename}")
 
     def export_receipt_details(self):
         """Експортує деталі вибраного чеку у PDF."""
