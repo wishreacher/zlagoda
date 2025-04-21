@@ -303,170 +303,220 @@ def show_receipt_items(self, check_number):
     dialog.geometry(f"+{x}+{y}")
 
 def sell_products(self):
-    """Handle product sales by creating a new check (Req 7)"""
-    dialog = tk.Toplevel(self.root)
-    dialog.title("Sell Products")
-    dialog.geometry("600x600")
-    dialog.transient(self.root)
-    dialog.grab_set()
+        """Handle product sales by creating a new check (Req 7)"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Sell Products")
+        dialog.geometry("800x600")
+        dialog.transient(self.root)
+        dialog.grab_set()
 
-    customer_frame = tk.Frame(dialog)
-    customer_frame.pack(fill='x', padx=10, pady=(10, 5))
+        customer_frame = tk.Frame(dialog)
+        customer_frame.pack(fill='x', padx=10, pady=(10, 5))
 
-    customer_label = tk.Label(customer_frame, text="Customer (card_number):")
-    customer_label.pack(side='left', padx=(5, 0))
-    customer_var = tk.StringVar()
-    customers = self.db.fetch_all('Customer_Card')
-    customer_options = [""] + [customer[0] for customer in customers]
-    customer_menu = ttk.OptionMenu(customer_frame, customer_var, customer_options[0], *customer_options)
-    customer_menu.pack(side='left', padx=(5, 10))
+        customer_label = tk.Label(customer_frame, text="Customer (card_number):")
+        customer_label.pack(side='left', padx=(5, 0))
+        customer_var = tk.StringVar()
+        customers = self.db.fetch_all('Customer_Card')
+        customer_options = [""] + [customer[0] for customer in customers]
+        customer_menu = ttk.OptionMenu(customer_frame, customer_var, customer_options[0], *customer_options)
+        customer_menu.pack(side='left', padx=(5, 10))
 
-    products_frame = tk.Frame(dialog)
-    products_frame.pack(fill='both', expand=True, padx=10, pady=5)
+        products_frame = tk.Frame(dialog)
+        products_frame.pack(fill='both', expand=True, padx=10, pady=5)
 
-    product_entries = []
+        product_entries = []
 
-    def add_product_entry():
-        entry_frame = tk.Frame(products_frame)
-        entry_frame.pack(fill='x', pady=2)
+        # Fetch products for Combobox
+        products = self.db.fetch_filtered("SELECT p.product_name, sp.UPC, sp.products_number, sp.selling_price FROM Product p JOIN Store_Product sp ON p.id_product = sp.id_product")
+        product_names = [row[0] for row in products]
+        product_dict = {row[0]: {'upc': row[1], 'stock': row[2], 'price': row[3]} for row in products}
+        upc_dict = {row[1]: {'name': row[0], 'stock': row[2], 'price': row[3]} for row in products}
 
-        upc_label = tk.Label(entry_frame, text="UPC:")
-        upc_label.pack(side='left', padx=(5, 0))
-        upc_entry = tk.Entry(entry_frame, font=("Space Mono", 12), width=15)
-        upc_entry.pack(side='left', padx=(5, 5))
+        def add_product_entry():
+            entry_frame = tk.Frame(products_frame)
+            entry_frame.pack(fill='x', pady=2)
 
-        qty_label = tk.Label(entry_frame, text="Quantity:")
-        qty_label.pack(side='left', padx=(5, 0))
-        qty_entry = tk.Entry(entry_frame, font=("Space Mono", 12), width=5)
-        qty_entry.pack(side='left', padx=(5, 5))
+            upc_var = tk.StringVar()
+            product_name_var = tk.StringVar()
+            qty_var = tk.StringVar()
+            available_qty_var = tk.StringVar(value="/0")
 
-        product_entries.append((entry_frame, upc_entry, qty_entry))
+            def update_fields_from_product(event=None):
+                """Update UPC and available quantity when a product is selected"""
+                product_name = product_name_var.get()
+                if product_name in product_dict:
+                    upc_var.set(product_dict[product_name]['upc'])
+                    available_qty_var.set(f"/{product_dict[product_name]['stock']}")
+                else:
+                    upc_var.set("")
+                    available_qty_var.set("/0")
+                update_total()
 
-    add_product_button = tk.Button(dialog, text="+ Add Product", font=("Space Mono", 12), command=add_product_entry)
-    add_product_button.pack(pady=5)
+            def update_fields_from_upc(event=None):
+                """Update product name and available quantity when UPC is entered"""
+                upc = upc_var.get()
+                if upc in upc_dict:
+                    product_name_var.set(upc_dict[upc]['name'])
+                    available_qty_var.set(f"/{upc_dict[upc]['stock']}")
+                else:
+                    product_name_var.set("")
+                    available_qty_var.set("/0")
+                update_total()
 
-    add_product_entry()
+            # Single row for UPC, product, quantity, and delete button
+            upc_label = tk.Label(entry_frame, text="UPC:")
+            upc_label.pack(side='left', padx=(5, 0))
+            upc_entry = tk.Entry(entry_frame, textvariable=upc_var, font=("Space Mono", 12), width=15)
+            upc_entry.pack(side='left', padx=(5, 5))
+            upc_entry.bind("<KeyRelease>", update_fields_from_upc)
 
-    total_frame = tk.Frame(dialog)
-    total_frame.pack(fill='x', padx=10, pady=5)
-    total_label = tk.Label(total_frame, text="Total Amount: 0.00")
-    total_label.pack()
+            product_label = tk.Label(entry_frame, text="Product:")
+            product_label.pack(side='left', padx=(5, 0))
+            product_combobox = ttk.Combobox(entry_frame, textvariable=product_name_var, values=product_names, font=("Space Mono", 12), width=20)
+            product_combobox.pack(side='left', padx=(5, 5))
+            product_combobox.bind("<<ComboboxSelected>>", update_fields_from_product)
 
-    def update_total():
-        total = 0.0
-        for _, upc_entry, qty_entry in product_entries:
-            upc = upc_entry.get()
-            qty = qty_entry.get()
-            if upc and qty:
+            qty_label = tk.Label(entry_frame, text="Quantity:")
+            qty_label.pack(side='left', padx=(5, 0))
+            qty_entry = tk.Entry(entry_frame, textvariable=qty_var, font=("Space Mono", 12), width=5)
+            qty_entry.pack(side='left', padx=(5, 0))
+            tk.Label(entry_frame, textvariable=available_qty_var, font=("Space Mono", 12)).pack(side='left', padx=(0, 5))
+
+            def delete_entry():
+                product_entries.remove((entry_frame, upc_entry, qty_entry))
+                entry_frame.destroy()
+                update_total()
+
+            delete_button = tk.Button(entry_frame, text="x", font=("Space Mono", 12), width=2, command=delete_entry)
+            delete_button.pack(side='left', padx=(5, 0))
+
+            product_entries.append((entry_frame, upc_entry, qty_entry))
+
+            # Bind updates for total calculation
+            qty_entry.bind("<KeyRelease>", lambda e: update_total())
+
+        add_product_button = tk.Button(dialog, text="+ Add Product", font=("Space Mono", 12), command=add_product_entry)
+        add_product_button.pack(pady=5)
+
+        add_product_entry()
+
+        total_frame = tk.Frame(dialog)
+        total_frame.pack(fill='x', padx=10, pady=5)
+        total_label = tk.Label(total_frame, text="Total Amount: 0.00")
+        total_label.pack()
+
+        def update_total():
+            total = 0.0
+            for _, upc_entry, qty_entry in product_entries:
+                upc = upc_entry.get()
+                qty = qty_entry.get()
+                if upc and qty:
+                    try:
+                        qty = int(qty)
+                        info = self.db.get_product_info(upc)
+                        if info:
+                            price, _ = info
+                            total += price * qty
+                    except ValueError:
+                        pass
+                card_number = customer_var.get()
+                if card_number:
+                    discount = self.db.get_customer_discount(card_number)
+                    if discount:
+                        total = total * (1 - discount / 100)
+                total_label.config(text=f"Total Amount: {total:.2f}")
+
+        customer_var.trace("w", lambda *args: update_total())
+
+        def save_sale():
+            # Aggregate items by UPC to avoid UNIQUE constraint violation
+            items_dict = {}  # Dictionary to store UPC: (total_qty, price)
+
+            for _, upc_entry, qty_entry in product_entries:
+                upc = upc_entry.get()
+                qty = qty_entry.get()
+                if not upc or not qty:
+                    continue
                 try:
                     qty = int(qty)
+                    if qty <= 0:
+                        messagebox.showerror("Error", "Quantity must be greater than 0")
+                        return
                     info = self.db.get_product_info(upc)
-                    if info:
-                        price, _ = info
-                        total += price * qty
+                    if not info:
+                        messagebox.showerror("Error", f"Product with UPC {upc} not found")
+                        return
+                    price, available = info
+                    if upc in items_dict:
+                        items_dict[upc] = (items_dict[upc][0] + qty, price)
+                    else:
+                        items_dict[upc] = (qty, price)
+                    # Check total quantity for this UPC against available stock
+                    total_qty = items_dict[upc][0]
+                    if total_qty > available:
+                        messagebox.showerror("Error", f"Not enough stock for UPC {upc}. Available: {available}")
+                        return
                 except ValueError:
-                    pass
-        card_number = customer_var.get()
-        if card_number:
-            discount = self.db.get_customer_discount(card_number)
-            if discount:
-                total = total * (1 - discount / 100)
-        total_label.config(text=f"Total Amount: {total:.2f}")
-
-    for _, upc_entry, qty_entry in product_entries:
-        upc_entry.bind("<KeyRelease>", lambda e: update_total())
-        qty_entry.bind("<KeyRelease>", lambda e: update_total())
-    customer_var.trace("w", lambda *args: update_total())
-
-    def save_sale():
-        # Aggregate items by UPC to avoid UNIQUE constraint violation
-        items_dict = {}  # Dictionary to store UPC: (total_qty, price)
-
-        for _, upc_entry, qty_entry in product_entries:
-            upc = upc_entry.get()
-            qty = qty_entry.get()
-            if not upc or not qty:
-                continue
-            try:
-                qty = int(qty)
-                if qty <= 0:
-                    messagebox.showerror("Error", "Quantity must be greater than 0")
+                    messagebox.showerror("Error", "Quantity must be a number")
                     return
-                info = self.db.get_product_info(upc)
-                if not info:
-                    messagebox.showerror("Error", f"Product with UPC {upc} not found")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error processing UPC {upc}: {str(e)}")
                     return
-                price, available = info
-                if upc in items_dict:
-                    items_dict[upc] = (items_dict[upc][0] + qty, price)
-                else:
-                    items_dict[upc] = (qty, price)
-                # Check total quantity for this UPC against available stock
-                total_qty = items_dict[upc][0]
-                if total_qty > available:
-                    messagebox.showerror("Error", f"Not enough stock for UPC {upc}. Available: {available}")
-                    return
-            except ValueError:
-                messagebox.showerror("Error", "Quantity must be a number")
+
+            if not items_dict:
+                messagebox.showerror("Error", "Add at least one product")
                 return
 
-        if not items_dict:
-            messagebox.showerror("Error", "Add at least one product")
-            return
+            # Calculate total amount
+            total = sum(qty * price for qty, price in items_dict.values())
+            card_number = customer_var.get()
+            if card_number:
+                discount = self.db.get_customer_discount(card_number)
+                if discount:
+                    total = total * (1 - discount / 100)
 
-        # Calculate total amount
-        total = sum(qty * price for qty, price in items_dict.values())
-        card_number = customer_var.get()
-        if card_number:
-            discount = self.db.get_customer_discount(card_number)
-            if discount:
-                total = total * (1 - discount / 100)
+            new_id_num = self.db.get_max_receipt_id() + 1
+            check_number = f"R{new_id_num:03d}"
+            print_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        new_id_num = self.db.get_max_receipt_id() + 1
-        check_number = f"R{new_id_num:03d}"
-        print_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-        # Begin a transaction
-        self.db.begin_transaction()
-        try:
-            # Insert into Check
-            self.db.execute_query(
-                'INSERT INTO "Check" (check_number, id_employee, card_number, print_date, sum_total) VALUES (?, ?, ?, ?, ?)',
-                (check_number, self.cashier_id, card_number if card_number else None, print_date, total)
-            )
-
-            # Insert aggregated items into Sale
-            for upc, (qty, price) in items_dict.items():
+            # Begin a transaction
+            try:
                 self.db.execute_query(
-                    "INSERT INTO Sale (UPC, check_number, product_number, selling_price) VALUES (?, ?, ?, ?)",
-                    (upc, check_number, qty, price)
+                    'INSERT INTO "Check" (check_number, id_employee, card_number, print_date, sum_total) VALUES (?, ?, ?, ?, ?)',
+                    (check_number, self.cashier_id, card_number if card_number else None, print_date, total)
                 )
 
-            # Update product quantities
-            for upc, (qty, _) in items_dict.items():
-                self.db.execute_query(
-                    "UPDATE Store_Product SET products_number = products_number - ? WHERE UPC = ?",
-                    (qty, upc)
-                )
+                # Insert aggregated items into Sale
+                for upc, (qty, price) in items_dict.items():
+                    self.db.execute_query(
+                        "INSERT INTO Sale (UPC, check_number, product_number, selling_price) VALUES (?, ?, ?, ?)",
+                        (upc, check_number, qty, price)
+                    )
 
-            # Commit the transaction
-            self.db.commit_transaction()
-        except Exception as e:
-            # Rollback on error
-            self.db.rollback_transaction()
-            messagebox.showerror("Error", f"Failed to complete sale: {str(e)}")
-            return
+                # Update product quantities
+                for upc, (qty, _) in items_dict.items():
+                    self.db.execute_query(
+                        "UPDATE Store_Product SET products_number = products_number - ? WHERE UPC = ?",
+                        (qty, upc)
+                    )
 
-        self.update_cashier_store_product_treeview()
-        self.update_cashier_receipt_treeview()
+                # Commit the transaction
+                self.db.commit_transaction()
+            except Exception as e:
+                self.db.rollback_transaction()
+                messagebox.showerror("Error", f"Failed to complete sale: {str(e)}")
+                return
 
-        dialog.destroy()
-        messagebox.showinfo("Success", f"Sale completed! Check Number: {check_number}")
+            self.update_cashier_store_product_treeview()
+            self.update_cashier_receipt_treeview()
 
-    save_button = tk.Button(dialog, text="Complete Sale", font=("Space Mono", 12), command=save_sale)
-    save_button.pack(pady=10)
+            dialog.destroy()
+            messagebox.showinfo("Success", f"Sale completed! Check Number: {check_number}")
 
-    dialog.update_idletasks()
-    x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (dialog.winfo_width() // 2)
-    y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (dialog.winfo_height() // 2)
-    dialog.geometry(f"+{x}+{y}")
+        save_button = tk.Button(dialog, text="Complete Sale", font=("Space Mono", 12), command=save_sale)
+        save_button.pack(pady=10)
+
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (dialog.winfo_width() // 2)
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
