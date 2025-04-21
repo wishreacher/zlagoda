@@ -408,6 +408,7 @@ class ManagerDashboard:
         messagebox.showinfo("Success", f"Report saved as {filename}")
 
     def export_receipt_details(self):
+        """Export details of the selected receipt to a PDF with transliterated text."""
         tree = self.treeviews['Чеки']
         selected_item = tree.selection()
         if not selected_item:
@@ -424,57 +425,40 @@ class ManagerDashboard:
             (check_number,)
         )
 
+        # Функція для транслітерації кириличних символів
+        def transliterate(text):
+            translit_dict = {
+                'а': 'a', 'б': 'b', 'в': 'v', 'г': 'h', 'ґ': 'g', 'д': 'd', 'е': 'e', 'є': 'ye', 'ж': 'zh', 'з': 'z',
+                'и': 'y', 'і': 'i', 'ї': 'yi', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p',
+                'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh',
+                'щ': 'shch',
+                'ь': '', 'ю': 'yu', 'я': 'ya',
+                'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'H', 'Ґ': 'G', 'Д': 'D', 'Е': 'E', 'Є': 'Ye', 'Ж': 'Zh', 'З': 'Z',
+                'И': 'Y', 'І': 'I', 'Ї': 'Yi', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N', 'О': 'O', 'П': 'P',
+                'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U', 'Ф': 'F', 'Х': 'Kh', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh',
+                'Щ': 'Shch',
+                'Ь': '', 'Ю': 'Yu', 'Я': 'Ya',
+            }
+            return ''.join(translit_dict.get(char, char) for char in text)
+
         filename = f"receipt_{check_number}.pdf"
         c = canvas.Canvas(filename, pagesize=A4)
         y = 800
-        c.setFont("Helvetica", 12)  # Використовуємо вбудований шрифт Helvetica
+        c.setFont("Helvetica", 12)
         c.drawString(100, y, f"Receipt: {check_number}")
         y -= 20
         c.drawString(100, y, "Product, UPC, Quantity, Price, Total")
         y -= 20
         for item in items:
-            c.drawString(100, y, ", ".join(str(val) for val in item))
+            product_name_translit = transliterate(item[0])  # Транслітеруємо назву товару
+            row = [product_name_translit, item[1], item[2], item[3], item[4]]
+            c.drawString(100, y, ", ".join(str(val) for val in row))
             y -= 20
             if y < 50:
                 c.showPage()
                 y = 800
         c.save()
         messagebox.showinfo("Success", f"Receipt details saved as {filename}")
-
-    def export_receipt_details(self):
-        """Експортує деталі вибраного чеку у PDF."""
-        tree = self.treeviews['Чеки']
-        selected_item = tree.selection()
-        if not selected_item:
-            messagebox.showwarning("Попередження", "Виберіть чек для друку")
-            return
-        check_number = tree.item(selected_item, 'values')[0]
-
-        items = self.db.fetch_filtered(
-            """
-            SELECT p.product_name, s.UPC, s.product_number, s.selling_price, (s.product_number * s.selling_price)
-            FROM Sale s JOIN Store_Product sp ON s.UPC = sp.UPC
-            JOIN Product p ON sp.id_product = p.id_product WHERE s.check_number = ?
-            """,
-            (check_number,)
-        )
-
-        filename = f"receipt_{check_number}.pdf"
-        c = canvas.Canvas(filename, pagesize=A4)
-        y = 800
-        c.setFont("Helvetica", 12)
-        c.drawString(100, y, f"Чек: {check_number}")
-        y -= 20
-        c.drawString(100, y, "Товар, UPC, Кількість, Ціна, Сума")
-        y -= 20
-        for item in items:
-            c.drawString(100, y, ", ".join(str(val) for val in item))
-            y -= 20
-            if y < 50:
-                c.showPage()
-                y = 800
-        c.save()
-        messagebox.showinfo("Успіх", f"Деталі чеку збережено як {filename}")
 
 if __name__ == "__main__":
     root = tk.Tk()
