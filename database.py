@@ -61,3 +61,9 @@ class Database:
         self.cursor.execute("SELECT percent FROM Customer_Card WHERE card_number = ?", (card_number,))
         result = self.cursor.fetchone()
         return result[0] if result else None
+
+    def get_promotional_status(self, upc):
+        """Check if a product is promotional by UPC"""
+        self.cursor.execute("SELECT promotional_product FROM Store_Product WHERE UPC = ?", (upc,))
+        result = self.cursor.fetchone()
+        return bool(result[0]) if result else False
