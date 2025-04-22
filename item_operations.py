@@ -102,7 +102,7 @@ def add_new_item(self, tab_name):
             self.db.commit_transaction()
         except Exception as e:
             self.db.rollback_transaction()
-            messagebox.showerror("Error", f"Failed to add item: {str(e)}")
+            messagebox.showerror("Помилка", f"Не вдалося додати товар: {str(e)}")
             return
 
         # Update the corresponding treeview
@@ -132,11 +132,11 @@ def delete_selected_item(self, tab_name):
     selected_item = tree.selection()
 
     if not selected_item:
-        messagebox.showinfo("Information", "Please select an item to delete")
+        messagebox.showinfo("Попередження", "Виберіть запис для видалення.")
         return
 
     item_values = tree.item(selected_item, 'values')
-    confirm = messagebox.askyesno("Confirm Deletion", f"Are you sure you want to delete this record?\n\n{item_values}")
+    confirm = messagebox.askyesno("Підтвердіть видалення", f"Ви хочете видалити цей запис?\n\n{item_values}")
 
     if confirm:
         table_name = TABLE_MAPPING[tab_name]
@@ -151,7 +151,7 @@ def delete_selected_item(self, tab_name):
             self.db.commit_transaction()
         except Exception as e:
             self.db.rollback_transaction()
-            messagebox.showerror("Error", f"Failed to delete item: {str(e)}")
+            messagebox.showerror("Помилка", f"Не вдалося видалити запис: {str(e)}")
             return
 
         tree.delete(selected_item)
@@ -233,7 +233,7 @@ def on_cell_double_click(self, event, tab_name):
                 self.db.commit_transaction()
             except Exception as e:
                 self.db.rollback_transaction()
-                messagebox.showerror("Error", f"Failed to update item: {str(e)}")
+                messagebox.showerror("Помилка", f"Не вдалося оновити запис: {str(e)}")
                 return
 
             tree.item(item, values=values)
@@ -250,7 +250,7 @@ def on_cell_double_click(self, event, tab_name):
 
         edit_dialog.destroy()
 
-    save_button = tk.Button(edit_dialog, text="Save", font=("Space Mono", 12), command=save_edit)
+    save_button = tk.Button(edit_dialog, text="Зберегти", font=("Space Mono", 12), command=save_edit)
     save_button.pack(pady=10)
 
     edit_dialog.update_idletasks()
@@ -263,7 +263,7 @@ def on_cell_double_click(self, event, tab_name):
 def show_receipt_items(self, check_number):
     """Show the purchased items in a specific check"""
     dialog = tk.Toplevel(self.root)
-    dialog.title(f"Items in Check {check_number}")
+    dialog.title(f"Товари в чеку {check_number}")
     dialog.geometry("600x400")
     dialog.transient(self.root)
     dialog.grab_set()
@@ -271,7 +271,7 @@ def show_receipt_items(self, check_number):
     tree_frame = tk.Frame(dialog)
     tree_frame.pack(fill='both', expand=True, padx=10, pady=10)
 
-    columns = ('product_name', 'UPC', 'quantity', 'selling_price', 'total_price')
+    columns = ('назва', 'UPC', 'кількість', 'ціна', 'сума')
     tree = ttk.Treeview(tree_frame, columns=columns, show='headings')
 
     for col in columns:
@@ -310,7 +310,7 @@ def show_receipt_items(self, check_number):
 def sell_products(self):
     """Handle product sales with VAT, promotional discounts, and customer discounts"""
     dialog = tk.Toplevel(self.root)
-    dialog.title("Sell Products")
+    dialog.title("Продажі")
     dialog.geometry("800x600")
     dialog.transient(self.root)
     dialog.grab_set()
@@ -318,7 +318,7 @@ def sell_products(self):
     customer_frame = tk.Frame(dialog)
     customer_frame.pack(fill='x', padx=10, pady=(10, 5))
 
-    customer_label = tk.Label(customer_frame, text="Customer (card_number):")
+    customer_label = tk.Label(customer_frame, text="Пошук за номером картки:")
     customer_label.pack(side='left', padx=(5, 0))
     customer_var = tk.StringVar()
     customers = self.db.fetch_all('Customer_Card')
@@ -477,17 +477,17 @@ def sell_products(self):
                 # Check total quantity for this UPC against available stock
                 total_qty = items_dict[upc][0]
                 if total_qty > available:
-                    messagebox.showerror("Error", f"Not enough stock for UPC {upc}. Available: {available}")
+                    messagebox.showerror("Помилка", f"Недостатньо у наявності для UPC {upc}. У наявності: {available}")
                     return
             except ValueError:
-                messagebox.showerror("Error", "Quantity must be a number")
+                messagebox.showerror("Помилка", "Кількість має бути числом")
                 return
             except Exception as e:
-                messagebox.showerror("Error", f"Error processing UPC {upc}: {str(e)}")
+                messagebox.showerror("Помилка", f"Помилка обробки UPC {upc}: {str(e)}")
                 return
 
         if not items_dict:
-            messagebox.showerror("Error", "Add at least one product")
+            messagebox.showerror("Помилка", "Додайте хочаб один продукт")
             return
 
         # Calculate total with VAT, promotional discounts, and customer discounts
@@ -529,16 +529,16 @@ def sell_products(self):
             self.db.commit_transaction()
         except Exception as e:
             self.db.rollback_transaction()
-            messagebox.showerror("Error", f"Failed to complete sale: {str(e)}")
+            messagebox.showerror("Помилка", f"Не вийшло завершити продаж: {str(e)}")
             return
 
         self.update_cashier_store_product_treeview()
         self.update_cashier_receipt_treeview()
 
         dialog.destroy()
-        messagebox.showinfo("Success", f"Sale completed! Check Number: {check_number}")
+        messagebox.showinfo("Ура!", f"Продукт продано! Номер чеку: {check_number}")
 
-    save_button = tk.Button(dialog, text="Complete Sale", font=("Space Mono", 12), command=save_sale)
+    save_button = tk.Button(dialog, text="Продати", font=("Space Mono", 12), command=save_sale)
     save_button.pack(pady=10)
 
     dialog.update_idletasks()

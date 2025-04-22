@@ -4,7 +4,7 @@ from datetime import datetime, date
 # Cashier Dashboard Methods (from previous implementation)
 def update_cashier_product_treeview(self):
     """Update the Product Treeview with name and category search (Req 1, 4, 5)"""
-    tree = self.treeviews['Product']
+    tree = self.treeviews['Продукти']
     tree.delete(*tree.get_children())
 
     name_search = self.cashier_product_name_var.get().lower()
@@ -34,7 +34,7 @@ def update_cashier_product_treeview(self):
 
 def update_cashier_store_product_treeview(self):
     """Update the Store_Product Treeview with filters and sorting (Req 2, 12, 13, 14)"""
-    tree = self.treeviews['Store_Product']
+    tree = self.treeviews['Продукти у магазині']
     tree.delete(*tree.get_children())
 
     search_term = self.cashier_store_product_search_var.get().lower()
@@ -74,7 +74,7 @@ def update_cashier_store_product_treeview(self):
 
 def update_cashier_customer_treeview(self):
     """Update the Customer_Card Treeview with surname search (Req 3, 6)"""
-    tree = self.treeviews['Customer_Card']
+    tree = self.treeviews['Постійні клієнти']
     tree.delete(*tree.get_children())
 
     search_term = self.cashier_customer_search_var.get().lower()
@@ -96,7 +96,7 @@ def update_cashier_customer_treeview(self):
 
 def update_cashier_receipt_treeview(self):
     """Update the Check Treeview for the cashier with date range filters (Req 9, 10)"""
-    tree = self.treeviews['Check']
+    tree = self.treeviews['Чеки']
     tree.delete(*tree.get_children())
 
     start_date = self.cashier_receipt_start_date_var.get()

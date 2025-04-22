@@ -29,7 +29,7 @@ class DashboardView:
 
     def __init__(self, root, cashier_id):
         self.root = root
-        self.root.title("Cashier Dashboard")
+        self.root.title("Панель касира")
         self.root.geometry("1200x800")
         self.cashier_id = cashier_id
         self.db = Database()
@@ -40,11 +40,11 @@ class DashboardView:
         cashier_info = self.db.fetch_filtered("SELECT * FROM Employee WHERE id_employee = ?", (cashier_id,))
         cashier_info = cashier_info[0] if cashier_info else None
         if cashier_info:
-            cashier_text = (f"Cashier: {cashier_info[1]} {cashier_info[2]} {cashier_info[3]}\n"
-                           f"ID: {cashier_info[0]} | Role: {cashier_info[4]} | Salary: {cashier_info[5]}\n"
-                           f"Date of Birth: {cashier_info[6]} | Date of Start: {cashier_info[7]} | Address: {cashier_info[8]}")
+            cashier_text = (f"Касир: {cashier_info[1]} {cashier_info[2]} {cashier_info[3]}\n"
+                           f"ID: {cashier_info[0]} | Посада: {cashier_info[4]} | Зарплата: {cashier_info[5]}\n"
+                           f"Дата народження: {cashier_info[6]} | Дата початку: {cashier_info[7]} | Адреса: {cashier_info[8]}")
         else:
-            cashier_text = "Cashier: Unknown"
+            cashier_text = "Касира не знайдено"
 
         role_label = tk.Label(self.root, text=cashier_text, anchor="w", justify="left")
         role_label.pack(anchor="nw", padx=10, pady=10)
@@ -58,11 +58,11 @@ class DashboardView:
         style.configure("TNotebook.Tab", font=("Space Mono", 12))
 
         self.entity_columns = {
-            'Product': ['id_product', 'product_name', 'category_number', 'characteristics'],
-            'Store_Product': ['UPC', 'id_product', 'product_name', 'selling_price', 'products_number', 'promotional_product'],
-            'Customer_Card': ['card_number', 'cust_surname', 'cust_name', 'cust_patronymic', 'phone_number', 'street', 'zip_code', 'percent'],
-            'Check': ['check_number', 'cashier', 'print_date', 'sum_total'],
-            'Sale': [],
+            'Продукти': ['ID продукта', 'назва', 'категорія', 'опис'],
+            'Продукти у магазині': ['UPC', 'ID продукта', 'назва', 'ціна', 'кількість', 'наявність знижки'],
+            'Постійні клієнти': ['номер', 'прізвище', 'імʼя', 'по-батькові', 'номер телефона', 'адреса', 'індекс', 'знижка'],
+            'Чеки': ['номер чека', 'касир', 'дата видачі', 'сума'],
+            'Продажі': [],
         }
 
         self.treeviews = {}
@@ -102,24 +102,24 @@ class DashboardView:
         button_frame = tk.Frame(container_frame)
         button_frame.pack(side='top', fill='x', pady=(0, 5))
 
-        if tab_text == 'Sale':
-            sell_button = tk.Button(container_frame, text="New Sale", font=("Space Mono", 12), command=self.sell_products)
+        if tab_text == 'Продажі':
+            sell_button = tk.Button(container_frame, text="Новий продаж", font=("Space Mono", 12), command=self.sell_products)
             sell_button.pack(pady=10)
             return
 
-        if tab_text == 'Product':
-            name_label = tk.Label(button_frame, text="Search (product_name):")
+        if tab_text == 'Продукти':
+            name_label = tk.Label(button_frame, text="Пошук по назві продукта:")
             name_label.pack(side='left', padx=(5, 0))
             name_entry = tk.Entry(button_frame, textvariable=self.cashier_product_name_var, font=("Space Mono", 12))
             name_entry.pack(side='left', padx=(5, 10))
 
-            category_label = tk.Label(button_frame, text="Search (category_number):")
+            category_label = tk.Label(button_frame, text="Пошук по номеру категорії")
             category_label.pack(side='left', padx=(5, 0))
             category_entry = tk.Entry(button_frame, textvariable=self.cashier_product_category_var, font=("Space Mono", 12))
             category_entry.pack(side='left', padx=(5, 10))
 
-        if tab_text == 'Store_Product':
-            search_label = tk.Label(button_frame, text="Search (UPC):")
+        if tab_text == 'Продукти у магазині':
+            search_label = tk.Label(button_frame, text="Пошук за UPC")
             search_label.pack(side='left', padx=(5, 0))
             search_entry = tk.Entry(button_frame, textvariable=self.cashier_store_product_search_var, font=("Space Mono", 12))
             search_entry.pack(side='left', padx=(5, 10))
@@ -127,48 +127,48 @@ class DashboardView:
             def toggle_promotional():
                 self.cashier_show_promotional_only = not self.cashier_show_promotional_only
                 self.cashier_show_non_promotional_only = False
-                promo_button.config(text="Show All Products" if self.cashier_show_promotional_only else "Show Promotional Products")
-                non_promo_button.config(text="Show Non-Promotional Products")
+                promo_button.config(text="Усі продукти" if self.cashier_show_promotional_only else "Продукти по акції")
+                non_promo_button.config(text="Продукти без акцій")
                 self.update_cashier_store_product_treeview()
 
             def toggle_non_promotional():
                 self.cashier_show_non_promotional_only = not self.cashier_show_non_promotional_only
                 self.cashier_show_promotional_only = False
-                non_promo_button.config(text="Show All Products" if self.cashier_show_non_promotional_only else "Show Non-Promotional Products")
-                promo_button.config(text="Show Promotional Products")
+                non_promo_button.config(text="Усі продукти" if self.cashier_show_non_promotional_only else "Продукти без акцій")
+                promo_button.config(text="Продукти по акції")
                 self.update_cashier_store_product_treeview()
 
-            promo_button = tk.Button(button_frame, text="Show Promotional Products", font=("Space Mono", 12), command=toggle_promotional)
+            promo_button = tk.Button(button_frame, text="Продукти по акції", font=("Space Mono", 12), command=toggle_promotional)
             promo_button.pack(side='left', padx=(5, 0))
 
-            non_promo_button = tk.Button(button_frame, text="Show Non-Promotional Products", font=("Space Mono", 12), command=toggle_non_promotional)
+            non_promo_button = tk.Button(button_frame, text="Продукти без акцій", font=("Space Mono", 12), command=toggle_non_promotional)
             non_promo_button.pack(side='left', padx=(5, 0))
 
-            sort_label = tk.Label(button_frame, text="Sort by:")
+            sort_label = tk.Label(button_frame, text="Сортувати за:")
             sort_label.pack(side='left', padx=(10, 0))
             sort_menu = ttk.OptionMenu(button_frame, self.cashier_promotional_sort_var, "кількість", "кількість", "назва")
             sort_menu.pack(side='left', padx=(5, 10))
 
-        if tab_text == 'Customer_Card':
-            search_label = tk.Label(button_frame, text="Search (cust_surname):")
+        if tab_text == 'Постійні клієнти':
+            search_label = tk.Label(button_frame, text="Шукати за прізвищем")
             search_label.pack(side='left', padx=(5, 0))
             search_entry = tk.Entry(button_frame, textvariable=self.cashier_customer_search_var, font=("Space Mono", 12))
             search_entry.pack(side='left', padx=(5, 10), fill='x', expand=True)
 
-        if tab_text == 'Check':
-            start_date_label = tk.Label(button_frame, text="Start Date (YYYY-MM-DD):")
+        if tab_text == 'Чеки':
+            start_date_label = tk.Label(button_frame, text="Дата початку (РРРР-ММ-ДД):")
             start_date_label.pack(side='left', padx=(5, 0))
             start_date_entry = tk.Entry(button_frame, textvariable=self.cashier_receipt_start_date_var, font=("Space Mono", 12), width=12)
             start_date_entry.pack(side='left', padx=(5, 10))
 
-            end_date_label = tk.Label(button_frame, text="End Date (YYYY-MM-DD):")
+            end_date_label = tk.Label(button_frame, text="End Date (РРРР-ММ-ДД):")
             end_date_label.pack(side='left', padx=(5, 0))
             end_date_entry = tk.Entry(button_frame, textvariable=self.cashier_receipt_end_date_var, font=("Space Mono", 12), width=12)
             end_date_entry.pack(side='left', padx=(5, 10))
 
             print_button = tk.Button(
                 button_frame,
-                text="Print Receipt",
+                text="Надрукувати чек",
                 font=("Space Mono", 12),
                 command=self.print_receipt
             )
@@ -176,24 +176,24 @@ class DashboardView:
 
             details_button = tk.Button(
                 button_frame,
-                text="View Details",
+                text="Деталі",
                 font=("Space Mono", 12),
-                command=lambda: self.show_receipt_details(self.treeviews['Check'])
+                command=lambda: self.show_receipt_details(self.treeviews['Чеки'])
             )
             details_button.pack(side='right', padx=(5, 0))
 
             today_button = tk.Button(
                 button_frame,
-                text="Show Today's Receipts",
+                text="Сьогоднішні чеки",
                 font=("Space Mono", 12),
                 command=self.show_today_receipts
             )
             today_button.pack(side='right', padx=(5, 0))
 
-        if tab_text == 'Customer_Card':
+        if tab_text == 'Постійні клієнти':
             add_button = tk.Button(button_frame, text="+", font=("Space Mono", 16, "bold"), width=3, command=lambda t=tab_text: self.add_new_item(t))
             add_button.pack(side='right', padx=(5, 0))
-            delete_button = tk.Button(button_frame, text="Delete", font=("Space Mono", 12), command=lambda t=tab_text: self.delete_selected_item(t))
+            delete_button = tk.Button(button_frame, text="Видалити", font=("Space Mono", 12), command=lambda t=tab_text: self.delete_selected_item(t))
             delete_button.pack(side='right', padx=(5, 0))
 
         tree_frame = tk.Frame(container_frame)
@@ -217,23 +217,23 @@ class DashboardView:
         tree_frame.grid_rowconfigure(0, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
 
-        if tab_text == 'Product':
+        if tab_text == 'Продукти':
             self.update_cashier_product_treeview()
-        elif tab_text == 'Store_Product':
+        elif tab_text == 'Продукти у магазині':
             self.update_cashier_store_product_treeview()
-        elif tab_text == 'Customer_Card':
+        elif tab_text == 'Постійні клієнти':
             self.update_cashier_customer_treeview()
-        elif tab_text == 'Check':
+        elif tab_text == 'Чеки':
             self.update_cashier_receipt_treeview()
 
-        if tab_text != 'Check':
+        if tab_text != 'Чеки':
             tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
 
     def show_receipt_details(self, tree):
         """Display detailed information about the selected receipt in a new window"""
         selected_item = tree.selection()
         if not selected_item:
-            messagebox.showwarning("Warning", "Please select a receipt to view details")
+            messagebox.showwarning("Попередження", "Виберіть чек для перегляду деталей")
             return
 
         check_number = tree.item(selected_item, 'values')[0]
@@ -241,7 +241,7 @@ class DashboardView:
         # Fetch basic receipt info
         check_info = self.db.fetch_filtered("SELECT * FROM [Check] WHERE check_number = ?", (check_number,))
         if not check_info:
-            messagebox.showerror("Error", "Receipt not found")
+            messagebox.showerror("Помилка", "Чек не знайдено")
             return
 
         check_info = check_info[0]
@@ -262,20 +262,20 @@ class DashboardView:
         )
 
         if not items:
-            messagebox.showerror("Error", "No items found for this receipt")
+            messagebox.showerror("Помилка", "Не знайдено жодного товару для цього чека")
             return
 
         # Create a new window for receipt details
         details_window = tk.Toplevel(self.root)
-        details_window.title(f"Receipt Details: {check_number}")
+        details_window.title(f"Деталі чека: {check_number}")
         details_window.geometry("600x400")
 
         # Display basic receipt info with corrected sum_total formatting
-        info_label = tk.Label(details_window, text=f"Receipt Number: {check_number}\nCashier ID: {cashier_id}\nPrint Date: {print_date}\nTotal Sum: {sum_total:.2f}" if isinstance(sum_total, float) else f"Receipt Number: {check_number}\nCashier ID: {cashier_id}\nPrint Date: {print_date}\nTotal Sum: {sum_total}")
+        info_label = tk.Label(details_window, text=f"Номер чека: {check_number}\nID Касира: {cashier_id}\nДата видачі: {print_date}\nСума: {sum_total:.2f}" if isinstance(sum_total, float) else f"Номер чека: {check_number}\nID Касира: {cashier_id}\nДата видачі: {print_date}\nСума: {sum_total}")
         info_label.pack(pady=10)
 
         # Create a table for items
-        columns = ['Product Name', 'UPC', 'Quantity', 'Price', 'Total']
+        columns = ['Назва', 'UPC', 'Кількість', 'Ціна', 'Сума']
         item_tree = ttk.Treeview(details_window, columns=columns, show='headings')
         for col in columns:
             item_tree.heading(col, text=col)
@@ -329,7 +329,7 @@ class DashboardView:
         )
 
         if not items:
-            messagebox.showerror("Error", "No items found for this receipt")
+            messagebox.showerror("Помилка", "Не знайдено жодного товару для цього чека")
             return
 
         filename = f"receipt_{check_number}.pdf"
