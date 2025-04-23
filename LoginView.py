@@ -1,5 +1,10 @@
 import tkinter as tk
 from tkinter import messagebox, font
+import sqlite3
+from hashlib import sha256
+
+from DatabaseHelper import DatabaseHelper
+
 
 class LoginPage:
     def __init__(self, root):
@@ -7,6 +12,12 @@ class LoginPage:
         self.root.title("Авторизація")
         self.root.geometry("400x300")
         self.root.resizable(False, False)
+
+        # Initialize database helper
+        self.db_helper = DatabaseHelper()
+
+        # Ensure password field exists in database
+        self.db_helper.create_password_field()
 
         custom_font = font.Font(family="Space Mono", size=12)
         title_font = font.Font(family="Space Mono", size=18, weight="bold")
@@ -66,11 +77,6 @@ class LoginPage:
         username = self.username_entry.get()
         password = self.password_entry.get()
 
-        mock_database = {
-            "cash1": {"password": "1", "role": "cashier"},
-            "man1": {"password": "1", "role": "manager"}
-        }
-
         # Validation
         if not username:
             messagebox.showerror("Помилка", "Логін не може бути порожнім")
@@ -80,12 +86,14 @@ class LoginPage:
             messagebox.showerror("Помилка", "Пароль не може бути порожньою")
             return
 
-        user_data = mock_database.get(username)
-        if user_data and user_data["password"] == password:
+        # Authenticate using database
+        user_data = self.db_helper.validate_login(username, password)
+
+        if user_data:
             role = user_data["role"]
-            if role == "cashier":
+            if role.lower() == "cashier":
                 self.open_cashier_dashboard(username)
-            elif role == "manager":
+            elif role.lower() == "manager":
                 self.open_manager_dashboard(username)
             else:
                 messagebox.showerror("Помилка", "Невідома роль")
