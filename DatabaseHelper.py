@@ -85,6 +85,14 @@ class DatabaseHelper:
         result = self.cursor.fetchone()
         return result[0] if result else None
 
+    def commit(self):
+        # Commit changes
+        self.conn.commit()
+
+    def rollback(self):
+        # Rollback changes
+        self.conn.rollback()
+
     def close(self):
         # Close the database connection
         self.conn.close()
