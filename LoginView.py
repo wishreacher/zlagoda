@@ -1,10 +1,10 @@
 import tkinter as tk
 from tkinter import messagebox, font
 import sqlite3
-from hashlib import sha256
+from hashlib import sha256  # Kept for other uses in the project
+import bcrypt  # For password hashing
 
 from DatabaseHelper import DatabaseHelper
-
 
 class LoginPage:
     def __init__(self, root):

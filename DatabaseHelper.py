@@ -1,113 +1,96 @@
 import sqlite3
-import hashlib
+from hashlib import sha256  # Kept for other uses in the project
+import bcrypt  # For password hashing
 
 class DatabaseHelper:
-    def __init__(self, db_path="store.db"):
-        self.db_path = db_path
-
-    def get_connection(self):
-        return sqlite3.connect(self.db_path)
+    def __init__(self):
+        # Initialize database connection and cursor
+        self.conn = sqlite3.connect("store.db")  # Adjust the database path if needed
+        self.cursor = self.conn.cursor()
 
     def create_password_field(self):
-        """Add password field to the Employee table if it doesn't exist"""
+        # Ensure the password field exists in the Employee table
         try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
+            self.cursor.execute("ALTER TABLE Employee ADD COLUMN password TEXT")
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
 
-            # First, check if the Employee table exists
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Employee'")
-            if not cursor.fetchone():
-                print("Error: Employee table does not exist.")
-                print("Available tables:")
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                tables = cursor.fetchall()
-                for table in tables:
-                    print(f" - {table[0]}")
-                conn.close()
-                return False
+    def validate_login(self, username, password):
+        # Fetch the stored (hashed) password and role for the given username
+        query = "SELECT password, role FROM Employee WHERE id_employee = ?"
+        self.cursor.execute(query, (username,))
+        result = self.cursor.fetchone()
 
-            # Check if password column already exists
-            cursor.execute("PRAGMA table_info(Employee)")
-            columns = cursor.fetchall()
-            column_names = [col[1] for col in columns]
+        if result:
+            stored_password, role = result
+            # Verify the entered password against the stored bcrypt hash
+            try:
+                if bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')):
+                    return {"role": role}
+            except ValueError:
+                # Invalid hash format (e.g., if it's a sha256 hash or corrupted)
+                return None
+        return None
 
-            print(f"Current columns in Employee table: {column_names}")
+    def fetch_all(self, table_name):
+        # Fetch all records from a given table
+        query = f"SELECT * FROM \"{table_name}\""
+        self.cursor.execute(query)
+        return self.cursor.fetchall()
 
-            if "password" not in column_names:
-                print("Attempting to add password column...")
-                cursor.execute("ALTER TABLE Employee ADD COLUMN password VARCHAR(100)")
-                conn.commit()
-                print("Password column added successfully")
-            else:
-                print("Password column already exists")
+    def fetch_filtered(self, query, params=()):
+        # Fetch records based on a custom query with parameters
+        self.cursor.execute(query, params)
+        return self.cursor.fetchall()
 
-            conn.close()
-            return True
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            print(f"Database path: {self.db_path}")
-            return False
+    def execute_query(self, query, params=()):
+        # Execute a query (INSERT, UPDATE, DELETE) with parameters
+        self.cursor.execute(query, params)
 
-    def set_password(self, employee_id, password):
-        """Set hashed password for an employee"""
-        try:
-            # First verify the employee exists
-            conn = self.get_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT id_employee FROM Employee WHERE id_employee = ?", (employee_id,))
-            if not cursor.fetchone():
-                print(f"Employee with ID {employee_id} not found")
-                conn.close()
-                return False
+    def begin_transaction(self):
+        # Start a transaction
+        self.conn.execute("BEGIN TRANSACTION")
 
-            # Make sure password column exists
-            self.create_password_field()
+    def commit_transaction(self):
+        # Commit the current transaction
+        self.conn.commit()
 
-            # Now set the password
-            hashed_password = self._hash_password(password)
-            cursor.execute("UPDATE Employee SET password = ? WHERE id_employee = ?",
-                           (hashed_password, employee_id))
-            rows_affected = cursor.rowcount
-            conn.commit()
-            conn.close()
+    def rollback_transaction(self):
+        # Rollback the current transaction
+        self.conn.rollback()
 
-            if rows_affected > 0:
-                print(f"Password set successfully for employee ID {employee_id}")
-                return True
-            else:
-                print(f"No rows updated for employee ID {employee_id}")
-                return False
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            return False
+    def get_max_receipt_id(self):
+        # Get the maximum receipt ID to generate a new check_number
+        self.cursor.execute("SELECT MAX(check_number) FROM \"Check\"")
+        max_id = self.cursor.fetchone()[0]
+        if max_id:
+            # Extract the numeric part (e.g., "R001" -> 1)
+            num = int(max_id.replace("R", ""))
+            return num
+        return 0
 
-    def validate_login(self, login, password):
-        """Validate login credentials against the database"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
+    def get_product_info(self, upc):
+        # Get product info (price and stock) by UPC
+        query = "SELECT selling_price, products_number FROM Store_Product WHERE UPC = ?"
+        self.cursor.execute(query, (upc,))
+        result = self.cursor.fetchone()
+        return result if result else None
 
-            cursor.execute("SELECT id_employee, role, password FROM Employee WHERE id_employee = ?", (login,))
-            user_data = cursor.fetchone()
-            conn.close()
+    def get_customer_discount(self, card_number):
+        # Get the discount percentage for a customer card
+        query = "SELECT percent FROM Customer_Card WHERE card_number = ?"
+        self.cursor.execute(query, (card_number,))
+        result = self.cursor.fetchone()
+        return result[0] if result else None
 
-            if user_data:
-                stored_id, role, stored_password = user_data
+    def close(self):
+        # Close the database connection
+        self.conn.close()
 
-                # If password is not set yet in the database
-                if stored_password is None:
-                    return None
-
-                # Verify password
-                hashed_input = self._hash_password(password)
-                if hashed_input == stored_password:
-                    return {"id": stored_id, "role": role}
-
-            return None
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            return None
-
-    def _hash_password(self, password):
-        """Create a SHA-256 hash of the password"""
-        return hashlib.sha256(password.encode()).hexdigest()
+    # Placeholder for other methods that might use sha256
+    def some_other_method(self):
+        data = "some_data"
+        hashed_data = sha256(data.encode('utf-8')).hexdigest()
+        return hashed_data

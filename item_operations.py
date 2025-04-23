@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 from datetime import datetime
+import bcrypt  # Added for password hashing
 
 # Mapping of tab names to database table names
 TABLE_MAPPING = {
@@ -41,7 +42,8 @@ COLUMN_MAPPING = {
         'зарплата': 'salary',
         'дата народження': 'date_of_birth',
         'дата початку': 'date_of_start',
-        'адреса': 'address'
+        'адреса': 'address',
+        'пароль': 'password'
     },
     'Постійні клієнти': {
         'номер картки': 'card_number',
@@ -60,9 +62,8 @@ COLUMN_MAPPING = {
     }
 }
 
-
 def add_new_item(self, tab_name):
-    """Handle adding a new item to the specified tab"""
+    """Handle adding a new item to the specified tab with password hashing for employees"""
     columns = self.entity_columns[tab_name]
     values = {}
 
@@ -75,19 +76,29 @@ def add_new_item(self, tab_name):
     for i, col in enumerate(columns):
         label = tk.Label(dialog, text=f"{col}:", anchor="w")
         label.grid(row=i, column=0, padx=10, pady=5, sticky="w")
-        entry = tk.Entry(dialog, font=("Space Mono", 12), width=25)
+        if tab_name == 'Працівники' and col == 'пароль':
+            entry = tk.Entry(dialog, font=("Space Mono", 12), width=25, show="*")
+        else:
+            entry = tk.Entry(dialog, font=("Space Mono", 12), width=25)
         entry.grid(row=i, column=1, padx=10, pady=5)
         values[col] = entry
 
     def save_item():
-        # Map UI labels to database columns
         db_columns = [COLUMN_MAPPING[tab_name][col] for col in columns]
         new_values = tuple(entry.get() for entry in values.values())
 
-        # Special handling for certain fields
+        if tab_name == 'Працівники':
+            for col, val in zip(columns, new_values):
+                if col == 'пароль' and not val:
+                    messagebox.showerror("Помилка", "Пароль не може бути порожнім.")
+                    return
+
         processed_values = []
         for col, val in zip(columns, new_values):
-            if tab_name == 'Продукти в магазині' and col == 'акційнний товар':
+            if tab_name == 'Працівники' and col == 'пароль':
+                hashed_password = bcrypt.hashpw(val.encode('utf-8'), bcrypt.gensalt())
+                processed_values.append(hashed_password.decode('utf-8'))
+            elif tab_name == 'Продукти в магазині' and col == 'акційнний товар':
                 processed_values.append(1 if val.lower() in ['так', 'yes'] else 0)
             else:
                 processed_values.append(val)
@@ -105,7 +116,6 @@ def add_new_item(self, tab_name):
             messagebox.showerror("Помилка", f"Не вдалося додати товар: {str(e)}")
             return
 
-        # Update the corresponding treeview
         if tab_name == 'Працівники':
             self.update_employee_treeview()
         elif tab_name == 'Постійні клієнти':
@@ -125,7 +135,6 @@ def add_new_item(self, tab_name):
     y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (dialog.winfo_height() // 2)
     dialog.geometry(f"+{x}+{y}")
 
-
 def delete_selected_item(self, tab_name):
     """Delete the selected item from the treeview"""
     tree = self.treeviews[tab_name]
@@ -140,7 +149,7 @@ def delete_selected_item(self, tab_name):
 
     if confirm:
         table_name = TABLE_MAPPING[tab_name]
-        pk_column = COLUMN_MAPPING[tab_name][self.entity_columns[tab_name][0]]  # First column is the primary key
+        pk_column = COLUMN_MAPPING[tab_name][self.entity_columns[tab_name][0]]
         pk_value = item_values[0]
 
         query = f"DELETE FROM \"{table_name}\" WHERE {pk_column} = ?"
@@ -156,7 +165,6 @@ def delete_selected_item(self, tab_name):
 
         tree.delete(selected_item)
 
-        # Update the corresponding treeview
         if tab_name == 'Працівники':
             self.update_employee_treeview()
         elif tab_name == 'Постійні клієнти':
@@ -165,7 +173,6 @@ def delete_selected_item(self, tab_name):
             self.update_product_treeview()
         elif tab_name == 'Продукти в магазині':
             self.update_store_product_treeview()
-
 
 def on_cell_double_click(self, event, tab_name):
     """Handle double-click on a cell to edit its value or view receipt details"""
@@ -187,8 +194,8 @@ def on_cell_double_click(self, event, tab_name):
     if not item:
         return
 
-    column_index = int(column.replace('#', '')) - 1
     columns = self.entity_columns[tab_name]
+    column_index = int(column.replace('#', '')) - 1
     if column_index >= len(columns):
         return
     column_name = columns[column_index]
@@ -203,24 +210,36 @@ def on_cell_double_click(self, event, tab_name):
 
     label = tk.Label(edit_dialog, text=f"Edit {column_name}:")
     label.pack(pady=(20, 10))
-    entry = tk.Entry(edit_dialog, font=("Space Mono", 12), width=25)
-    entry.insert(0, current_value)
+    if tab_name == 'Працівники' and column_name == 'пароль':
+        entry = tk.Entry(edit_dialog, font=("Space Mono", 12), width=25, show="*")
+        entry.insert(0, "")  # Do not display the hashed password
+    else:
+        entry = tk.Entry(edit_dialog, font=("Space Mono", 12), width=25)
+        entry.insert(0, current_value)
     entry.pack(pady=10)
     entry.select_range(0, tk.END)
     entry.focus_set()
 
     def save_edit():
         new_value = entry.get()
-        if new_value != current_value:
+        if new_value != ("" if tab_name == 'Працівники' and column_name == 'пароль' else current_value):
+            if tab_name == 'Працівники' and column_name == 'пароль' and not new_value:
+                messagebox.showerror("Помилка", "Пароль не може бути порожнім.")
+                return
+
             values = list(tree.item(item, 'values'))
-            values[column_index] = new_value
+            if tab_name == 'Працівники' and column_name == 'пароль':
+                hashed_password = bcrypt.hashpw(new_value.encode('utf-8'), bcrypt.gensalt())
+                new_value = hashed_password.decode('utf-8')
+                values[column_index] = "********"  # Display placeholder in UI
+            else:
+                values[column_index] = new_value
 
             table_name = TABLE_MAPPING[tab_name]
             db_column = COLUMN_MAPPING[tab_name][column_name]
             pk_column = COLUMN_MAPPING[tab_name][columns[0]]
             pk_value = values[0]
 
-            # Special handling for certain fields
             if tab_name == 'Продукти в магазині' and column_name == 'акційнний товар':
                 new_value = 1 if new_value.lower() in ['так', 'yes'] else 0
                 values[column_index] = 'Так' if new_value == 1 else 'Ні'
@@ -238,7 +257,6 @@ def on_cell_double_click(self, event, tab_name):
 
             tree.item(item, values=values)
 
-            # Update the corresponding treeview
             if tab_name == 'Працівники':
                 self.update_employee_treeview()
             elif tab_name == 'Постійні клієнти':
@@ -258,7 +276,6 @@ def on_cell_double_click(self, event, tab_name):
     y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (edit_dialog.winfo_height() // 2)
     edit_dialog.geometry(f"+{x}+{y}")
     entry.bind("<Return>", lambda event: save_edit())
-
 
 def show_receipt_items(self, check_number):
     """Show the purchased items in a specific check"""
@@ -306,7 +323,6 @@ def show_receipt_items(self, check_number):
     y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (dialog.winfo_height() // 2)
     dialog.geometry(f"+{x}+{y}")
 
-
 def sell_products(self):
     """Handle product sales with VAT, promotional discounts, and customer discounts"""
     dialog = tk.Toplevel(self.root)
@@ -331,7 +347,6 @@ def sell_products(self):
 
     product_entries = []
 
-    # Fetch products for Combobox
     products = self.db.fetch_filtered(
         "SELECT p.product_name, sp.UPC, sp.products_number, sp.selling_price FROM Product p JOIN Store_Product sp ON p.id_product = sp.id_product")
     product_names = [row[0] for row in products]
@@ -348,7 +363,6 @@ def sell_products(self):
         available_qty_var = tk.StringVar(value="/0")
 
         def update_fields_from_product(event=None):
-            """Update UPC and available quantity when a product is selected"""
             product_name = product_name_var.get()
             if product_name in product_dict:
                 upc_var.set(product_dict[product_name]['upc'])
@@ -359,7 +373,6 @@ def sell_products(self):
             update_total()
 
         def update_fields_from_upc(event=None):
-            """Update product name and available quantity when UPC is entered"""
             upc = upc_var.get()
             if upc in upc_dict:
                 product_name_var.set(upc_dict[upc]['name'])
@@ -369,7 +382,6 @@ def sell_products(self):
                 available_qty_var.set("/0")
             update_total()
 
-        # Single row for UPC, product, quantity, and delete button
         upc_label = tk.Label(entry_frame, text="UPC:")
         upc_label.pack(side='left', padx=(5, 0))
         upc_entry = tk.Entry(entry_frame, textvariable=upc_var, font=("Space Mono", 12), width=15)
@@ -399,7 +411,6 @@ def sell_products(self):
 
         product_entries.append((entry_frame, upc_entry, qty_entry))
 
-        # Bind updates for total calculation
         qty_entry.bind("<KeyRelease>", lambda e: update_total())
 
     add_product_button = tk.Button(dialog, text="+ Add Product", font=("Space Mono", 12), command=add_product_entry)
@@ -413,22 +424,15 @@ def sell_products(self):
     total_label.pack()
 
     def calculate_product_total(upc, qty):
-        """Calculate total price for a product including VAT and promotional discount"""
         info = self.db.get_product_info(upc)
         if not info:
             return 0.0
         price, _ = info
-        # Check if the product is promotional
-        promotional = self.db.fetch_filtered("SELECT promotional_product FROM Store_Product WHERE UPC = ?", (upc,))[0][
-            0]
+        promotional = self.db.fetch_filtered("SELECT promotional_product FROM Store_Product WHERE UPC = ?", (upc,))[0][0]
 
-        # Step 1: Apply 20% discount for promotional products
         if promotional:
-            price = price * 0.80  # 20% discount
-
-        # Step 2: Add 20% VAT to the price
+            price = price * 0.80
         price_with_vat = price * 1.20
-
         return qty * price_with_vat
 
     def update_total():
@@ -442,7 +446,6 @@ def sell_products(self):
                     total += calculate_product_total(upc, qty)
                 except ValueError:
                     pass
-        # Apply customer discount if applicable
         card_number = customer_var.get()
         if card_number:
             discount = self.db.get_customer_discount(card_number)
@@ -453,8 +456,7 @@ def sell_products(self):
     customer_var.trace("w", lambda *args: update_total())
 
     def save_sale():
-        # Aggregate items by UPC to avoid UNIQUE constraint violation
-        items_dict = {}  # Dictionary to store UPC: (total_qty, price)
+        items_dict = {}
         for _, upc_entry, qty_entry in product_entries:
             upc = upc_entry.get()
             qty = qty_entry.get()
@@ -474,7 +476,6 @@ def sell_products(self):
                     items_dict[upc] = (items_dict[upc][0] + qty, price)
                 else:
                     items_dict[upc] = (qty, price)
-                # Check total quantity for this UPC against available stock
                 total_qty = items_dict[upc][0]
                 if total_qty > available:
                     messagebox.showerror("Помилка", f"Недостатньо у наявності для UPC {upc}. У наявності: {available}")
@@ -490,7 +491,6 @@ def sell_products(self):
             messagebox.showerror("Помилка", "Додайте хочаб один продукт")
             return
 
-        # Calculate total with VAT, promotional discounts, and customer discounts
         total = 0.0
         for upc, (qty, price) in items_dict.items():
             total += calculate_product_total(upc, qty)
@@ -504,28 +504,24 @@ def sell_products(self):
         check_number = f"R{new_id_num:03d}"
         print_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        # Begin a transaction
         try:
             self.db.execute_query(
                 'INSERT INTO "Check" (check_number, id_employee, card_number, print_date, sum_total) VALUES (?, ?, ?, ?, ?)',
                 (check_number, self.cashier_id, card_number if card_number else None, print_date, total)
             )
 
-            # Insert aggregated items into Sale (use original price for database)
             for upc, (qty, price) in items_dict.items():
                 self.db.execute_query(
                     "INSERT INTO Sale (UPC, check_number, product_number, selling_price) VALUES (?, ?, ?, ?)",
                     (upc, check_number, qty, price)
                 )
 
-            # Update product quantities
             for upc, (qty, _) in items_dict.items():
                 self.db.execute_query(
                     "UPDATE Store_Product SET products_number = products_number - ? WHERE UPC = ?",
                     (qty, upc)
                 )
 
-            # Commit the transaction
             self.db.commit_transaction()
         except Exception as e:
             self.db.rollback_transaction()
