@@ -309,7 +309,7 @@ class DashboardView:
 
     def print_receipt(self):
         """Generate a PDF report for the selected receipt"""
-        tree = self.treeviews['Check']
+        tree = self.treeviews['Чеки']
         selected_item = tree.selection()
         if not selected_item:
             messagebox.showwarning("Warning", "Please select a receipt to print")
