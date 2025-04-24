@@ -3,6 +3,7 @@ from tkinter import messagebox, ttk
 from datetime import datetime
 import bcrypt  # Added for password hashing
 
+
 # Mapping of tab names to database table names
 TABLE_MAPPING = {
     'Продукти': 'Product',
@@ -56,14 +57,14 @@ COLUMN_MAPPING = {
     },
     'Чеки': {
         'номер чеку': 'check_number',
-        'касир': 'cashier',  # This is computed in the query
+        'касир': 'cashier',
         'дата': 'print_date',
         'загальна сума': 'sum_total'
     }
 }
 
 def add_new_item(self, tab_name):
-    """Handle adding a new item to the specified tab"""
+    """Handle adding a new item to the specified tab with password hashing for employees"""
     columns = self.entity_columns[tab_name]
     values = {}
 
@@ -76,64 +77,81 @@ def add_new_item(self, tab_name):
     for i, col in enumerate(columns):
         label = tk.Label(dialog, text=f"{col}:", anchor="w")
         label.grid(row=i, column=0, padx=10, pady=5, sticky="w")
-        entry = tk.Entry(dialog, font=("Space Mono", 12), width=25)
+        if tab_name == 'Працівники' and col == 'пароль':
+            entry = tk.Entry(dialog, font=("Space Mono", 12), width=25, show="*")
+        else:
+            entry = tk.Entry(dialog, font=("Space Mono", 12), width=25)
         entry.grid(row=i, column=1, padx=10, pady=5)
         values[col] = entry
 
     def save_item():
-        # Перевірка назви вкладки (враховуємо можливі варіанти написання)
-        if tab_name in ['Продукти у магазині', 'Продукти в магазині']:
+        # Спеціальна обробка для "Працівники" (хешування пароля)
+        if tab_name == 'Працівники':
+            new_values = [entry.get() for entry in values.values()]
+            for col, val in zip(columns, new_values):
+                if col == 'пароль' and not val:
+                    messagebox.showerror("Помилка", "Пароль не може бути порожнім.")
+                    return
+
+            processed_values = []
+            for col, val in zip(columns, new_values):
+                if col == 'пароль':
+                    hashed_password = bcrypt.hashpw(val.encode('utf-8'), bcrypt.gensalt())
+                    processed_values.append(hashed_password.decode('utf-8'))
+                else:
+                    processed_values.append(val)
+
+            db_columns = [COLUMN_MAPPING[tab_name][col] for col in columns]
+
+        # Спеціальна обробка для "Продукти в магазині"
+        elif tab_name in ['Продукти у магазині', 'Продукти в магазині']:
             product_name = values['назва'].get()
             if not product_name:
                 messagebox.showerror("Помилка", "Поле 'назва' є обов’язковим.")
                 return
 
-            # Знайти id_product за назвою
             product = self.db.fetch_filtered("SELECT id_product FROM Product WHERE product_name = ?", (product_name,))
             if not product:
                 messagebox.showerror("Помилка", f"Продукт з назвою '{product_name}' не знайдено.")
                 return
             id_product = product[0][0]
 
-            # Виключити 'назва' із даних для вставки
             columns_to_insert = [col for col in columns if col != 'назва']
             db_columns = []
-            new_values = []
+            processed_values = []
             for col in columns_to_insert:
                 if col in COLUMN_MAPPING[tab_name]:
                     db_columns.append(COLUMN_MAPPING[tab_name][col])
-                    if col == 'ID продукта':
-                        new_values.append(id_product)
+                    val = values[col].get()
+                    if col == 'акційнний товар':
+                        processed_values.append(1 if val.lower() in ['так', 'yes'] else 0)
+                    elif col == 'id продукту':
+                        processed_values.append(id_product)
                     else:
-                        new_values.append(values[col].get())
+                        processed_values.append(val)
                 else:
                     messagebox.showerror("Помилка", f"Невідоме поле: {col}")
                     return
 
+        # Для інших вкладок
         else:
-            # Для інших вкладок (наприклад, Постійні клієнти)
-            db_columns = []
-            new_values = []
-            for col in columns:
-                if col in COLUMN_MAPPING[tab_name]:
-                    db_columns.append(COLUMN_MAPPING[tab_name][col])
-                    new_values.append(values[col].get())
-                else:
-                    messagebox.showerror("Помилка", f"Невідоме поле: {col}")
-                    return
+            processed_values = [entry.get() for entry in values.values()]
+            db_columns = [COLUMN_MAPPING[tab_name][col] for col in columns]
 
         table_name = TABLE_MAPPING[tab_name]
-        placeholders = ', '.join(['?' for _ in new_values])
+        placeholders = ', '.join(['?' for _ in processed_values])
         query = f'INSERT INTO "{table_name}" ({", ".join(db_columns)}) VALUES ({placeholders})'
 
         self.db.begin_transaction()
         try:
-            self.db.execute_query(query, tuple(new_values))
+            self.db.execute_query(query, tuple(processed_values))
             self.db.commit_transaction()
             if tab_name in ['Продукти у магазині', 'Продукти в магазині']:
-                self.update_cashier_store_product_treeview()
-            elif tab_name == 'Постійні клієнти':
-                self.update_cashier_customer_treeview()
+                if hasattr(self, 'update_cashier_store_product_treeview'):
+                    self.update_cashier_store_product_treeview()
+            elif tab_name == 'Працівники':
+                if hasattr(self, 'update_employee_treeview'):
+                    self.update_employee_treeview()
             dialog.destroy()
             messagebox.showinfo("Успіх", f"Дані успішно додані до {tab_name}!")
         except Exception as e:
