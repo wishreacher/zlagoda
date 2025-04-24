@@ -107,6 +107,19 @@ class ManagerDashboard:
         self.db.close()
         self.root.destroy()
 
+    def update_cashier_store_product_treeview(self):
+        tree = self.treeviews['Продукти в магазині']
+        tree.delete(*tree.get_children())
+        query = """
+            SELECT sp.UPC, sp.id_product, p.product_name, sp.selling_price, sp.products_number, sp.promotional_product
+            FROM Store_Product sp
+            JOIN Product p ON sp.id_product = p.id_product
+        """
+        items = self.db.fetch_filtered(query)
+        for item in items:
+            tree.insert('', 'end', values=item)
+
+
     def create_tab(self, notebook, tab_text, columns):
         # Create a frame for the tab
         frame = tk.Frame(notebook)

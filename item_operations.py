@@ -24,7 +24,6 @@ COLUMN_MAPPING = {
     'Продукти в магазині': {
         'UPC': 'UPC',
         'id продукту': 'id_product',
-        'назва': 'product_name',  # This is fetched via JOIN
         'ціна': 'selling_price',
         'наявність': 'products_number',
         'акційнний товар': 'promotional_product'
@@ -64,12 +63,12 @@ COLUMN_MAPPING = {
 }
 
 def add_new_item(self, tab_name):
-    """Handle adding a new item to the specified tab with password hashing for employees"""
+    """Handle adding a new item to the specified tab"""
     columns = self.entity_columns[tab_name]
     values = {}
 
     dialog = tk.Toplevel(self.root)
-    dialog.title(f"Add New Record - {tab_name}")
+    dialog.title(f"Додати новий запис - {tab_name}")
     dialog.geometry("400x500")
     dialog.transient(self.root)
     dialog.grab_set()
@@ -77,58 +76,71 @@ def add_new_item(self, tab_name):
     for i, col in enumerate(columns):
         label = tk.Label(dialog, text=f"{col}:", anchor="w")
         label.grid(row=i, column=0, padx=10, pady=5, sticky="w")
-        if tab_name == 'Працівники' and col == 'пароль':
-            entry = tk.Entry(dialog, font=("Space Mono", 12), width=25, show="*")
-        else:
-            entry = tk.Entry(dialog, font=("Space Mono", 12), width=25)
+        entry = tk.Entry(dialog, font=("Space Mono", 12), width=25)
         entry.grid(row=i, column=1, padx=10, pady=5)
         values[col] = entry
 
     def save_item():
-        db_columns = [COLUMN_MAPPING[tab_name][col] for col in columns]
-        new_values = tuple(entry.get() for entry in values.values())
+        # Перевірка назви вкладки (враховуємо можливі варіанти написання)
+        if tab_name in ['Продукти у магазині', 'Продукти в магазині']:
+            product_name = values['назва'].get()
+            if not product_name:
+                messagebox.showerror("Помилка", "Поле 'назва' є обов’язковим.")
+                return
 
-        if tab_name == 'Працівники':
-            for col, val in zip(columns, new_values):
-                if col == 'пароль' and not val:
-                    messagebox.showerror("Помилка", "Пароль не може бути порожнім.")
+            # Знайти id_product за назвою
+            product = self.db.fetch_filtered("SELECT id_product FROM Product WHERE product_name = ?", (product_name,))
+            if not product:
+                messagebox.showerror("Помилка", f"Продукт з назвою '{product_name}' не знайдено.")
+                return
+            id_product = product[0][0]
+
+            # Виключити 'назва' із даних для вставки
+            columns_to_insert = [col for col in columns if col != 'назва']
+            db_columns = []
+            new_values = []
+            for col in columns_to_insert:
+                if col in COLUMN_MAPPING[tab_name]:
+                    db_columns.append(COLUMN_MAPPING[tab_name][col])
+                    if col == 'ID продукта':
+                        new_values.append(id_product)
+                    else:
+                        new_values.append(values[col].get())
+                else:
+                    messagebox.showerror("Помилка", f"Невідоме поле: {col}")
                     return
 
-        processed_values = []
-        for col, val in zip(columns, new_values):
-            if tab_name == 'Працівники' and col == 'пароль':
-                hashed_password = bcrypt.hashpw(val.encode('utf-8'), bcrypt.gensalt())
-                processed_values.append(hashed_password.decode('utf-8'))
-            elif tab_name == 'Продукти в магазині' and col == 'акційнний товар':
-                processed_values.append(1 if val.lower() in ['так', 'yes'] else 0)
-            else:
-                processed_values.append(val)
+        else:
+            # Для інших вкладок (наприклад, Постійні клієнти)
+            db_columns = []
+            new_values = []
+            for col in columns:
+                if col in COLUMN_MAPPING[tab_name]:
+                    db_columns.append(COLUMN_MAPPING[tab_name][col])
+                    new_values.append(values[col].get())
+                else:
+                    messagebox.showerror("Помилка", f"Невідоме поле: {col}")
+                    return
 
         table_name = TABLE_MAPPING[tab_name]
-        placeholders = ', '.join(['?' for _ in processed_values])
+        placeholders = ', '.join(['?' for _ in new_values])
         query = f'INSERT INTO "{table_name}" ({", ".join(db_columns)}) VALUES ({placeholders})'
 
         self.db.begin_transaction()
         try:
-            self.db.execute_query(query, processed_values)
+            self.db.execute_query(query, tuple(new_values))
             self.db.commit_transaction()
+            if tab_name in ['Продукти у магазині', 'Продукти в магазині']:
+                self.update_cashier_store_product_treeview()
+            elif tab_name == 'Постійні клієнти':
+                self.update_cashier_customer_treeview()
+            dialog.destroy()
+            messagebox.showinfo("Успіх", f"Дані успішно додані до {tab_name}!")
         except Exception as e:
             self.db.rollback_transaction()
-            messagebox.showerror("Помилка", f"Не вдалося додати товар: {str(e)}")
-            return
+            messagebox.showerror("Помилка", f"Не вдалося додати запис: {str(e)}")
 
-        if tab_name == 'Працівники':
-            self.update_employee_treeview()
-        elif tab_name == 'Постійні клієнти':
-            self.update_customer_treeview()
-        elif tab_name == 'Продукти':
-            self.update_product_treeview()
-        elif tab_name == 'Продукти в магазині':
-            self.update_store_product_treeview()
-
-        dialog.destroy()
-
-    save_button = tk.Button(dialog, text="Save", font=("Space Mono", 12), command=save_item)
+    save_button = tk.Button(dialog, text="Зберегти", font=("Space Mono", 12), command=save_item)
     save_button.grid(row=len(columns), column=0, columnspan=2, pady=20)
 
     dialog.update_idletasks()
