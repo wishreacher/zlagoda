@@ -50,8 +50,9 @@ COLUMN_MAPPING = {
         'прізвище': 'cust_surname',
         'імʼя': 'cust_name',
         'по-батькові': 'cust_patronymic',
-        'номер телефону': 'phone_number',
-        'адреса': 'street',  # Will concatenate with zip_code in UI
+        'номер телефона': 'phone_number',
+        'адреса': 'street',
+        'індекс': 'zip_code',
         'відсоток знижки': 'percent'
     },
     'Чеки': {
