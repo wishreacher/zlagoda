@@ -376,7 +376,8 @@ class DashboardView:
         # Table data
         data = [["Product", "UPC", "Quantity", "Price", "Total"]]
         for item in items:
-            product_name_translit = self.transliterate(item[0])
+            product_name = item[0]
+            product_name_translit = self.transliterate(product_name)
             data.append([product_name_translit, item[1], item[2], f"{item[3]:.2f}", f"{item[4]:.2f}"])
 
         # Create table

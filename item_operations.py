@@ -463,8 +463,7 @@ def sell_products(self):
 
         if promotional:
             price = price * 0.80
-        price_with_vat = price * 1.20
-        return qty * price_with_vat
+        return qty * price
 
     def update_total():
         total = 0.0
