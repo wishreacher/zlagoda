@@ -251,20 +251,29 @@ class DashboardView:
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         img_tk = ImageTk.PhotoImage(img)
 
-        label = tk.Label(preview_window, image=img_tk)
-        label.image = img_tk
-        label.pack(fill='both', expand=True)
+        # Create a container frame for the buttons and the preview
+        container_frame = tk.Frame(preview_window)
+        container_frame.pack(fill='both', expand=True)
 
-        button_frame = tk.Frame(preview_window)
-        button_frame.pack(side='bottom', pady=10)
+        # Create a frame for the buttons
+        button_frame = tk.Frame(container_frame)
+        button_frame.pack(side='left', fill='y', padx=10, pady=10)
 
         print_button = tk.Button(button_frame, text="Друк",
                                  command=lambda: self.finalize_print(filename, preview_window, check_number))
-        print_button.pack(side='left', padx=10)
+        print_button.pack(pady=10)
 
         cancel_button = tk.Button(button_frame, text="Скасувати",
                                   command=lambda: [preview_window.destroy(), os.remove(filename)])
-        cancel_button.pack(side='left', padx=10)
+        cancel_button.pack(pady=10)
+
+        # Display the PDF preview
+        preview_frame = tk.Frame(container_frame)
+        preview_frame.pack(side='right', fill='both', expand=True)
+
+        label = tk.Label(preview_frame, image=img_tk)
+        label.image = img_tk
+        label.pack(fill='both', expand=True)
 
     def finalize_print(self, filename, window, check_number):
         final_filename = f"receipt_{check_number}.pdf"
