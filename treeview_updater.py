@@ -6,8 +6,8 @@ def update_cashier_product_treeview(self):
     tree = self.treeviews['Продукти']
     tree.delete(*tree.get_children())
 
-    name_search = self.cashier_product_name_var.get().lower()
-    category_search = self.cashier_product_category_var.get()
+    name_search = self.cashier_product_name_var.get().strip()
+    category_search = self.cashier_product_category_var.get().strip()
 
     # Updated query to include manufacturer
     query = "SELECT id_product, product_name, category_number, characteristics, manufacturer FROM Product"
