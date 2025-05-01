@@ -50,7 +50,7 @@ class DashboardView:
         if cashier_info:
             cashier_text = (f"Касир: {cashier_info[1]} {cashier_info[2]} {cashier_info[3]}\n"
                            f"ID: {cashier_info[0]} | Посада: {cashier_info[4]} | Зарплата: {cashier_info[5]}\n"
-                           f"Дата народження: {cashier_info[6]} | Дата початку: {cashier_info[7]} | Адреса: {cashier_info[8]}")
+                           f"Дата народження: {cashier_info[6]} | Дата початку: {cashier_info[7]} | Адреса: {cashier_info[8]} | Телефон: {cashier_info[10]}")
         else:
             cashier_text = "Касира не знайдено"
 

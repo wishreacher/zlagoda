@@ -147,7 +147,8 @@ def update_employee_treeview(self):
 
     search_term = self.search_var.get().lower()
 
-    query = "SELECT id_employee, surname, name, patronymic, role, salary, date_of_birth, date_of_start, address FROM Employee"
+    # Updated query to fetch phone_number instead of password
+    query = "SELECT id_employee, surname, name, patronymic, role, salary, date_of_birth, date_of_start, address, phone_number FROM Employee"
     conditions = []
     params = []
 
