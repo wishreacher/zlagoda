@@ -14,6 +14,17 @@ from item_operations import add_new_item, delete_selected_item, on_cell_double_c
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from datetime import datetime
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+import tempfile
+import os
+import fitz
+from PIL import Image, ImageTk
+pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
 
 class ManagerDashboard:
     show_cashiers_only = False  # Class variable to track the toggle state
@@ -356,92 +367,114 @@ class ManagerDashboard:
         # Bind double-click event for editing cells or viewing receipt details
         tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
 
+    def show_pdf_preview(self, filename, report_name):
+        """Show a preview of the generated PDF report."""
+        preview_window = tk.Toplevel(self.root)
+        preview_window.title(f"Перегляд звіту: {report_name}")
+        preview_window.geometry("800x600")
+
+        pdf_doc = fitz.open(filename)
+        page = pdf_doc.load_page(0)
+        pix = page.get_pixmap()
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        img_tk = ImageTk.PhotoImage(img)
+
+        label = tk.Label(preview_window, image=img_tk)
+        label.image = img_tk
+        label.pack(fill='both', expand=True)
+
+        button_frame = tk.Frame(preview_window)
+        button_frame.pack(side='bottom', pady=10)
+
+        print_button = tk.Button(button_frame, text="Друк",
+                                 command=lambda: self.finalize_print(filename, preview_window, report_name))
+        print_button.pack(side='left', padx=10)
+
+        cancel_button = tk.Button(button_frame, text="Скасувати",
+                                  command=lambda: [preview_window.destroy(), os.remove(filename)])
+        cancel_button.pack(side='left', padx=10)
+
+    def finalize_print(self, filename, window, report_name):
+        """Finalize the PDF report by renaming and saving it."""
+        final_filename = f"report_{report_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        os.rename(filename, final_filename)
+        messagebox.showinfo("Успіх", f"Звіт збережено як {final_filename}")
+        window.destroy()
+
     def export_report(self, tab_name):
-        # Транслітерація назви вкладки
-        tab_name_en = {
-            'Продукти': 'Products',
-            'Продукти в магазині': 'Store Products',
-            'Категорії': 'Categories',
-            'Працівники': 'Employees',
-            'Постійні клієнти': 'Customers',
-            'Чеки': 'Receipts'
-        }.get(tab_name, tab_name)
-
+        """Export the report for the specified tab to a PDF with a formatted table."""
         tree = self.treeviews[tab_name]
-        # Транслітерація заголовків стовпців
         columns = self.entity_columns[tab_name]
-        columns_en = []
-        for col in columns:
-            col_en = {
-                'назва': 'Name',
-                'виробник': 'Manufacturer',
-                'id продукту': 'Product ID',
-                'id категорії': 'Category ID',
-                'Опис': 'Description',
-                'UPC': 'UPC',
-                'ціна': 'Price',
-                'наявність': 'Quantity',
-                'акційнний товар': 'Promotional',
-                'номер категорії': 'Category Number',
-                'id працівника': 'Employee ID',
-                'прізвище': 'Surname',
-                'імʼя': 'Name',
-                'по-батькові': 'Patronymic',
-                'посада': 'Role',
-                'зарплата': 'Salary',
-                'дата народження': 'Birth Date',
-                'дата початку': 'Start Date',
-                'адреса': 'Address',
-                'телефон': 'Phone',
-                'номер картки': 'Card Number',
-                'номер телефону': 'Phone',
-                'відсоток знижки': 'Discount Percent',
-                'номер чеку': 'Receipt Number',
-                'касир': 'Cashier',
-                'дата': 'Date',
-                'загальна сума': 'Total Sum'
-            }.get(col, col)
-            columns_en.append(col_en)
-
         data = [tree.item(item, 'values') for item in tree.get_children()]
 
-        filename = f"report_{tab_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        c = canvas.Canvas(filename, pagesize=A4)
-        y = 800
-        c.setFont("Helvetica", 12)
-        c.drawString(100, y, f"Report: {tab_name_en}")
-        y -= 20
-        c.drawString(100, y, ", ".join(columns_en))
-        y -= 20
-        for row in data:
-            c.drawString(100, y, ", ".join(str(val) for val in row))
-            y -= 20
-            if y < 50:
-                c.showPage()
-                y = 800
-        c.save()
-        messagebox.showinfo("Success", f"Report saved as {filename}")
-
-    def export_receipt_details(self):
-        """Export details of the selected receipt to a PDF with transliterated text."""
-        tree = self.treeviews['Чеки']
-        selected_item = tree.selection()
-        if not selected_item:
-            messagebox.showwarning("Warning", "Select a receipt to print")
+        if not data:
+            messagebox.showwarning("Попередження", "Немає даних для створення звіту")
             return
-        check_number = tree.item(selected_item, 'values')[0]
 
-        items = self.db.fetch_filtered(
-            """
-            SELECT p.product_name, s.UPC, s.product_number, s.selling_price, (s.product_number * s.selling_price)
-            FROM Sale s JOIN Store_Product sp ON s.UPC = sp.UPC
-            JOIN Product p ON sp.id_product = p.id_product WHERE s.check_number = ?
-            """,
-            (check_number,)
-        )
+        # Create a temporary file for the PDF
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+            filename = temp_file.name
 
-        # Функція для транслітерації кириличних символів
-        def transliterate(text):
+        # Initialize the PDF document
+        doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+        elements = []
+
+        # Set up styles
+        styles = getSampleStyleSheet()
+        styles['Normal'].fontName = 'DejaVuSans'
+        styles['Title'].fontName = 'DejaVuSans'
+
+        # Add report title
+        elements.append(Paragraph(f"Звіт: {tab_name}", styles['Title']))
+        elements.append(Paragraph(f"Дата створення: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+        elements.append(Paragraph("<br/>", styles['Normal']))
+
+        # Prepare table data
+        table_data = [columns]  # Header row
+        for row in data:
+            table_data.append(list(row))
+
+        # Calculate column widths dynamically based on content
+        col_widths = [1.5 * inch] * len(columns)
+        if tab_name == 'Працівники':
+            col_widths = [1 * inch, 1.5 * inch, 1 * inch, 1 * inch, 1 * inch, 1 * inch, 1 * inch, 1 * inch, 1.5 * inch, 1.5 * inch]
+        elif tab_name == 'Постійні клієнти':
+            col_widths = [1.2 * inch, 1.5 * inch, 1 * inch, 1 * inch, 1.2 * inch, 1.5 * inch, 1 * inch, 1 * inch]
+        elif tab_name == 'Продукти':
+            col_widths = [1.5 * inch, 1 * inch, 1 * inch, 2 * inch, 1.5 * inch]
+        elif tab_name == 'Продукти в магазині':
+            col_widths = [1.2 * inch, 1 * inch, 1.5 * inch, 1 * inch, 1 * inch, 1.2 * inch]
+        elif tab_name == 'Категорії':
+            col_widths = [2 * inch, 1.5 * inch]
+
+        # Create the table
+        table = Table(table_data, colWidths=col_widths)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'DejaVuSans'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ]))
+        elements.append(table)
+
+        # Add summary if applicable (e.g., total count)
+        elements.append(Paragraph("<br/>", styles['Normal']))
+        elements.append(Paragraph(f"Загальна кількість записів: {len(data)}", styles['Normal']))
+
+        # Add print time
+        elements.append(Paragraph("<br/>", styles['Normal']))
+        elements.append(Paragraph(f"Час друку: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+
+        # Build the PDF
+        doc.build(elements)
+
+        # Show preview
+        self.show_pdf_preview(filename, tab_name)
+
+    def transliterate(text):
             translit_dict = {
                 'а': 'a', 'б': 'b', 'в': 'v', 'г': 'h', 'ґ': 'g', 'д': 'd', 'е': 'e', 'є': 'ye', 'ж': 'zh', 'з': 'z',
                 'и': 'y', 'і': 'i', 'ї': 'yi', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p',
@@ -456,24 +489,91 @@ class ManagerDashboard:
             }
             return ''.join(translit_dict.get(char, char) for char in text)
 
-        filename = f"receipt_{check_number}.pdf"
-        c = canvas.Canvas(filename, pagesize=A4)
-        y = 800
-        c.setFont("Helvetica", 12)
-        c.drawString(100, y, f"Receipt: {check_number}")
-        y -= 20
-        c.drawString(100, y, "Product, UPC, Quantity, Price, Total")
-        y -= 20
+
+    def export_receipt_details(self):
+        """Export details of the selected receipt to a PDF with formatted table."""
+        tree = self.treeviews['Чеки']
+        selected_item = tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Попередження", "Виберіть чек для друку")
+            return
+        check_number = tree.item(selected_item, 'values')[0]
+
+        check_info = self.db.fetch_filtered("SELECT * FROM [Check] WHERE check_number = ?", (check_number,))
+        if not check_info:
+            messagebox.showerror("Помилка", "Чек не знайдено")
+            return
+
+        check_info = check_info[0]
+        cashier_id = check_info[1]
+        print_date = check_info[3]
+        sum_total = check_info[4]
+
+        items = self.db.fetch_filtered(
+            """
+            SELECT p.product_name, s.UPC, s.product_number, s.selling_price, (s.product_number * s.selling_price)
+            FROM Sale s JOIN Store_Product sp ON s.UPC = sp.UPC
+            JOIN Product p ON sp.id_product = p.id_product WHERE s.check_number = ?
+            """,
+            (check_number,)
+        )
+
+        if not items:
+            messagebox.showerror("Помилка", "Не знайдено жодного товару для цього чека")
+            return
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+            filename = temp_file.name
+
+        doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+        elements = []
+
+        styles = getSampleStyleSheet()
+        styles['Normal'].fontName = 'DejaVuSans'
+        styles['Title'].fontName = 'DejaVuSans'
+
+        elements.append(Paragraph(f"Чек: {check_number}", styles['Title']))
+        elements.append(Paragraph(f"Номер чека: {check_number}", styles['Normal']))
+        elements.append(Paragraph(f"Дата: {print_date}", styles['Normal']))
+        elements.append(Paragraph(f"Касир: {cashier_id}", styles['Normal']))
+        elements.append(Paragraph("<br/>", styles['Normal']))
+
+        data = [["Назва товару", "UPC", "Кількість", "Ціна", "Сума"]]
         for item in items:
-            product_name_translit = transliterate(item[0])  # Транслітеруємо назву товару
-            row = [product_name_translit, item[1], item[2], item[3], item[4]]
-            c.drawString(100, y, ", ".join(str(val) for val in row))
-            y -= 20
-            if y < 50:
-                c.showPage()
-                y = 800
-        c.save()
-        messagebox.showinfo("Success", f"Receipt details saved as {filename}")
+            product_name_translit = self.transliterate(item[0])  # Додано: Транслітерація назви товару
+            data.append([product_name_translit, item[1], item[2], f"{item[3]:.2f}", f"{item[4]:.2f}"])
+
+        table = Table(data, colWidths=[2 * inch, 1.5 * inch, 1 * inch, 1 * inch, 1.5 * inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'DejaVuSans'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ]))
+        elements.append(table)
+
+        pdv = float(sum_total) * 0.2 if isinstance(sum_total, (int, float)) else 0
+        total_row = ["", "", "", "Загальна сума:", f"{sum_total:.2f}"]
+        pdv_row = ["", "", "", "ПДВ:", f"{pdv:.2f}"]
+        total_table = Table([total_row, pdv_row], colWidths=[2 * inch, 1.5 * inch, 1 * inch, 1 * inch, 1.5 * inch])
+        total_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'DejaVuSans'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ]))
+        elements.append(total_table)
+        elements.append(Paragraph("<br/>", styles['Normal']))
+        elements.append(Paragraph(f"Час друку: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+
+        doc.build(elements)
+
+        self.show_pdf_preview(filename, check_number)
 
 if __name__ == "__main__":
     root = tk.Tk()
