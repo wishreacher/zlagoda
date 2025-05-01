@@ -62,7 +62,7 @@ class ManagerDashboard:
 
         # Define the columns for each entity (using Ukrainian labels for display)
         self.entity_columns = {
-            'Продукти': ['назва', 'id продукту', 'id категорії', 'Опис'],
+            'Продукти': ['назва', 'id продукту', 'id категорії', 'Опис', 'виробник'],
             'Продукти в магазині': ['UPC', 'id продукту', 'назва', 'ціна', 'наявність', 'акційнний товар'],
             'Категорії': ['назва', 'номер категорії'],
             'Працівники': ['id працівника', 'прізвище', 'імʼя', 'по-батькові', 'посада', 'зарплата', 'дата народження', 'дата початку', 'адреса', 'телефон'],
@@ -374,6 +374,7 @@ class ManagerDashboard:
         for col in columns:
             col_en = {
                 'назва': 'Name',
+                'виробник': 'Manufacturer',
                 'id продукту': 'Product ID',
                 'id категорії': 'Category ID',
                 'Опис': 'Description',

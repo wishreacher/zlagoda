@@ -1,7 +1,6 @@
 from datetime import datetime, date
 
-
-# Cashier Dashboard Methods (from previous implementation)
+# Cashier Dashboard Methods
 def update_cashier_product_treeview(self):
     """Update the Product Treeview with name and category search (Req 1, 4, 5)"""
     tree = self.treeviews['Продукти']
@@ -10,7 +9,8 @@ def update_cashier_product_treeview(self):
     name_search = self.cashier_product_name_var.get().lower()
     category_search = self.cashier_product_category_var.get()
 
-    query = "SELECT id_product, product_name, category_number, characteristics FROM Product"
+    # Updated query to include manufacturer
+    query = "SELECT id_product, product_name, category_number, characteristics, manufacturer FROM Product"
     conditions = []
     params = []
 
@@ -30,7 +30,6 @@ def update_cashier_product_treeview(self):
 
     for row in data:
         tree.insert("", "end", values=row)
-
 
 def update_cashier_store_product_treeview(self):
     """Update the Store_Product Treeview with filters and sorting (Req 2, 12, 13, 14)"""
@@ -71,7 +70,6 @@ def update_cashier_store_product_treeview(self):
     for row in data:
         tree.insert("", "end", values=row)
 
-
 def update_cashier_customer_treeview(self):
     """Update the Customer_Card Treeview with surname search (Req 3, 6)"""
     tree = self.treeviews['Постійні клієнти']
@@ -92,7 +90,6 @@ def update_cashier_customer_treeview(self):
 
     for row in data:
         tree.insert("", "end", values=row)
-
 
 def update_cashier_receipt_treeview(self):
     """Update the Check Treeview for the cashier with date range filters (Req 9, 10)"""
@@ -138,7 +135,6 @@ def update_cashier_receipt_treeview(self):
     for row in data:
         tree.insert("", "end", values=row)
 
-
 # Manager Dashboard Methods
 def update_employee_treeview(self):
     """Update the Employee Treeview with surname search and cashier filter"""
@@ -147,7 +143,6 @@ def update_employee_treeview(self):
 
     search_term = self.search_var.get().lower()
 
-    # Updated query to fetch phone_number instead of password
     query = "SELECT id_employee, surname, name, patronymic, role, salary, date_of_birth, date_of_start, address, phone_number FROM Employee"
     conditions = []
     params = []
@@ -168,7 +163,6 @@ def update_employee_treeview(self):
 
     for row in data:
         tree.insert("", "end", values=row)
-
 
 def update_customer_treeview(self):
     """Update the Customer_Card Treeview with discount percentage filter"""
@@ -199,7 +193,6 @@ def update_customer_treeview(self):
     for row in data:
         tree.insert("", "end", values=row)
 
-
 def update_product_treeview(self):
     """Update the Product Treeview with category search"""
     tree = self.treeviews['Продукти']
@@ -207,7 +200,8 @@ def update_product_treeview(self):
 
     category_search = self.product_search_var.get()
 
-    query = "SELECT product_name, id_product, category_number, characteristics FROM Product"
+    # Updated query to include manufacturer
+    query = "SELECT product_name, id_product, category_number, characteristics, manufacturer FROM Product"
     conditions = []
     params = []
 
@@ -224,7 +218,6 @@ def update_product_treeview(self):
 
     for row in data:
         tree.insert("", "end", values=row)
-
 
 def update_store_product_treeview(self):
     """Update the Store_Product Treeview with UPC search, promotional filter, and sorting"""
@@ -263,16 +256,15 @@ def update_store_product_treeview(self):
     for row in data:
         tree.insert("", "end", values=row)
 
-
 def update_receipt_treeview(self):
     """Update the Check Treeview with cashier and date range filters"""
     tree = self.treeviews['Чеки']
     tree.delete(*tree.get_children())
 
-    cashier_display = self.receipt_cashier_var.get()
+    cashier_display = self.recept_cashier_var.get()
     cashier_id = self.cashier_mapping.get(cashier_display, "Всі касири")
-    start_date = self.receipt_start_date_var.get()
-    end_date = self.receipt_end_date_var.get()
+    start_date = self.recept_start_date_var.get()
+    end_date = self.recept_end_date_var.get()
     today = date.today().strftime('%Y-%m-%d')
 
     if not start_date and not end_date:
@@ -320,14 +312,13 @@ def update_receipt_treeview(self):
     # Update the reports after updating the treeview
     self.update_receipt_reports()
 
-
 def update_receipt_reports(self):
     """Update the sales and quantity reports in the Check tab"""
-    cashier_display = self.receipt_cashier_var.get()
+    cashier_display = self.recept_cashier_var.get()
     cashier_id = self.cashier_mapping.get(cashier_display, "Всі касири")
-    start_date = self.receipt_start_date_var.get()
-    end_date = self.receipt_end_date_var.get()
-    upc = self.receipt_product_var.get()
+    start_date = self.recept_start_date_var.get()
+    end_date = self.recept_end_date_var.get()
+    upc = self.recept_product_var.get()
     today = date.today().strftime('%Y-%m-%d')
 
     if not start_date and not end_date:
@@ -398,8 +389,6 @@ def update_receipt_reports(self):
     # Calculate total quantity for the selected UPC
     if upc:
         query_quantity = '''
-            SELECT SUM(sOral
-
             SELECT SUM(s.product_number)
             FROM Sale s
             JOIN "Check" c ON s.check_number = c.check_number
