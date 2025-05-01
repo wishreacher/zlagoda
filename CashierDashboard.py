@@ -234,7 +234,7 @@ class DashboardView:
         elif tab_text == 'Чеки':
             self.update_cashier_receipt_treeview()
 
-        if tab_text != 'Чеки':
+        if tab_text == 'Постійні клієнти':
             tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
 
     def show_receipt_details(self, tree):
