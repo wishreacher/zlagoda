@@ -13,7 +13,7 @@ from treeview_updater import (
 from item_operations import add_new_item, delete_selected_item, on_cell_double_click, show_receipt_items
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
-from datetime import datetime
+import datetime
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
@@ -251,6 +251,14 @@ class ManagerDashboard:
             end_date_label.pack(side='left', padx=(5, 0))
             end_date_entry = tk.Entry(button_frame, textvariable=self.receipt_end_date_var, font=("Space Mono", 12), width=12)
             end_date_entry.pack(side='left', padx=(5, 10))
+
+            today_button = tk.Button(
+                button_frame,
+                text="Сьогоднішні чеки",
+                font=("Space Mono", 12),
+                command=self.show_today_receipts
+            )
+            today_button.pack(side='right', padx=(5, 0))
 
         # Add the toggle button for cashiers (only for Працівники tab)
         if tab_text == 'Працівники':
@@ -574,6 +582,12 @@ class ManagerDashboard:
         doc.build(elements)
 
         self.show_pdf_preview(filename, check_number)
+
+    def show_today_receipts(self):
+        """Set the start and end date filters to today's date to show all receipts for today"""
+        today = datetime.date.today().strftime("%Y-%m-%d")
+        self.receipt_start_date_var.set(today)
+        self.receipt_end_date_var.set(today)
 
 if __name__ == "__main__":
     root = tk.Tk()
