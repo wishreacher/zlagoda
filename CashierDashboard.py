@@ -19,6 +19,10 @@ from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import datetime
+import fitz
+from PIL import Image, ImageTk
+import tempfile
+import os
 pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
 
 class DashboardView:
@@ -232,8 +236,41 @@ class DashboardView:
         elif tab_text == 'Чеки':
             self.update_cashier_receipt_treeview()
 
+
         if tab_text == 'Постійні клієнти':
             tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
+
+    def show_pdf_preview(self, filename, check_number):
+        preview_window = tk.Toplevel(self.root)
+        preview_window.title(f"Перегляд чеку: {check_number}")
+        preview_window.geometry("800x600")
+
+        pdf_doc = fitz.open(filename)
+        page = pdf_doc.load_page(0)
+        pix = page.get_pixmap()
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        img_tk = ImageTk.PhotoImage(img)
+
+        label = tk.Label(preview_window, image=img_tk)
+        label.image = img_tk
+        label.pack(fill='both', expand=True)
+
+        button_frame = tk.Frame(preview_window)
+        button_frame.pack(side='bottom', pady=10)
+
+        print_button = tk.Button(button_frame, text="Друк",
+                                 command=lambda: self.finalize_print(filename, preview_window, check_number))
+        print_button.pack(side='left', padx=10)
+
+        cancel_button = tk.Button(button_frame, text="Скасувати",
+                                  command=lambda: [preview_window.destroy(), os.remove(filename)])
+        cancel_button.pack(side='left', padx=10)
+
+    def finalize_print(self, filename, window, check_number):
+        final_filename = f"receipt_{check_number}.pdf"
+        os.rename(filename, final_filename)
+        messagebox.showinfo("Успіх", f"Чек збережено як {final_filename}")
+        window.destroy()
 
     def show_receipt_details(self, tree):
         """Display detailed information about the selected receipt in a new window"""
@@ -314,7 +351,6 @@ class DashboardView:
         return ''.join(translit_dict.get(char, char) for char in text)
 
     def print_receipt(self):
-        """Generate a PDF report for the selected receipt that looks like a real receipt"""
         tree = self.treeviews['Чеки']
         selected_item = tree.selection()
         if not selected_item:
@@ -323,7 +359,6 @@ class DashboardView:
 
         check_number = tree.item(selected_item, 'values')[0]
 
-        # Fetch basic receipt info
         check_info = self.db.fetch_filtered("SELECT * FROM [Check] WHERE check_number = ?", (check_number,))
         if not check_info:
             messagebox.showerror("Помилка", "Чек не знайдено")
@@ -334,7 +369,6 @@ class DashboardView:
         print_date = check_info[3]
         sum_total = check_info[4]
 
-        # Fetch items in the receipt
         items = self.db.fetch_filtered(
             """
             SELECT p.product_name, s.UPC, s.product_number, s.selling_price, (s.product_number * s.selling_price)
@@ -350,36 +384,28 @@ class DashboardView:
             messagebox.showerror("Помилка", "Не знайдено жодного товару для цього чека")
             return
 
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+            filename = temp_file.name
+
+        doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+        elements = []
 
         styles = getSampleStyleSheet()
         styles['Normal'].fontName = 'DejaVuSans'
         styles['Title'].fontName = 'DejaVuSans'
-        # Create PDF
-        filename = f"receipt_{check_number}.pdf"
-        doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
-        elements = []
 
-        # Styles
-        styles = getSampleStyleSheet()
-        title_style = styles['Title']
-        normal_style = styles['Normal']
+        elements.append(Paragraph("Check", styles['Title']))
+        elements.append(Paragraph(f"Check number: {check_number}", styles['Normal']))
+        elements.append(Paragraph(f"Date: {print_date}", styles['Normal']))
+        elements.append(Paragraph(f"Cashier: {cashier_id}", styles['Normal']))
+        elements.append(Paragraph("<br/>", styles['Normal']))
 
-        # Header
-        elements.append(Paragraph("Check", title_style))
-        elements.append(Paragraph(f"Check number: {check_number}", normal_style))
-        elements.append(Paragraph(f"Date: {print_date}", normal_style))
-        elements.append(Paragraph(f"Cashier: {cashier_id}", normal_style))
-        elements.append(Paragraph("<br/>", normal_style))  # Empty line
-
-        # Table data
         data = [["Product", "UPC", "Quantity", "Price", "Total"]]
         for item in items:
-            product_name = item[0]
-            product_name_translit = self.transliterate(product_name)
+            product_name_translit = self.transliterate(item[0])
             data.append([product_name_translit, item[1], item[2], f"{item[3]:.2f}", f"{item[4]:.2f}"])
 
-        # Create table
-        table = Table(data, colWidths=[2*inch, 1.5*inch, 1*inch, 1*inch, 1.5*inch])
+        table = Table(data, colWidths=[2 * inch, 1.5 * inch, 1 * inch, 1 * inch, 1.5 * inch])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -391,11 +417,10 @@ class DashboardView:
         ]))
         elements.append(table)
 
-        # Total
         pdv = sum_total * 0.2
         total_row = ["", "", "", "Total:", f"{sum_total:.2f}"]
         pdv_row = ["", "", "", "PDV:", f"{pdv:.2f}"]
-        total_table = Table([total_row, pdv_row], colWidths=[2*inch, 1.5*inch, 1*inch, 1*inch, 1.5*inch])
+        total_table = Table([total_row, pdv_row], colWidths=[2 * inch, 1.5 * inch, 1 * inch, 1 * inch, 1.5 * inch])
 
         total_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.grey),
@@ -406,15 +431,18 @@ class DashboardView:
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
         ]))
         elements.append(total_table)
-        elements.append(Paragraph("<br/>", normal_style))  # Empty line
+        elements.append(Paragraph("<br/>", styles['Normal']))
 
-        # Footer
-        elements.append(Paragraph("<br/>", normal_style))  # Empty line
-        elements.append(Paragraph(f"Print time: {datetime.date.today().strftime('%Y-%m-%d')}", normal_style))
+        elements.append(Paragraph("<br/>", styles['Normal']))
+        elements.append(Paragraph(f"Print time: {datetime.date.today().strftime('%Y-%m-%d')}", styles['Normal']))
 
-        # Build PDF
         doc.build(elements)
-        messagebox.showinfo("Успіх", f"Чек збережено як {filename}")
+
+        self.show_pdf_preview(filename, check_number)
+
+
+
+
 
 if __name__ == "__main__":
     root = tk.Tk()
