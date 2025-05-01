@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
-from datetime import datetime
+from datetime import datetime, date
 import bcrypt  # Added for password hashing
 
 
@@ -63,6 +63,16 @@ COLUMN_MAPPING = {
     }
 }
 
+def calculate_age(birth_date_str):
+    """Calculate age from birth date string in YYYY-MM-DD format"""
+    try:
+        birth_date = datetime.strptime(birth_date_str, '%Y-%m-%d').date()
+        current_date = date.today() 
+        age = current_date.year - birth_date.year - ((current_date.month, current_date.day) < (birth_date.month, birth_date.day))
+        return age
+    except ValueError:
+        return None
+
 def add_new_item(self, tab_name):
     """Handle adding a new item to the specified tab with password hashing for employees"""
     columns = self.entity_columns[tab_name]
@@ -86,13 +96,27 @@ def add_new_item(self, tab_name):
 
     def save_item():
         # Спеціальна обробка для "Працівники" (хешування пароля)
+        new_values = [entry.get() for entry in values.values()]
         if tab_name == 'Працівники':
-            new_values = [entry.get() for entry in values.values()]
             for col, val in zip(columns, new_values):
                 if col == 'пароль' and not val:
                     messagebox.showerror("Помилка", "Пароль не може бути порожнім.")
                     return
-
+            date_of_birth = values.get('дата народження').get()
+            age = calculate_age(date_of_birth)
+            if age is not None and age < 18:
+                messagebox.showerror("Помилка", "Працівник повинен бути старше 18 років.")
+                return
+            salary = values.get('зарплата').get()
+            try:
+                salary_val = float(salary)
+                if salary_val <= 0:
+                    messagebox.showerror("Помилка", "Зарплата повинна бути більше нуля.")
+                    return
+            except ValueError:
+                messagebox.showerror("Помилка", "Зарплата повинна бути числом.")
+                return
+            
             processed_values = []
             for col, val in zip(columns, new_values):
                 if col == 'пароль':
@@ -106,6 +130,16 @@ def add_new_item(self, tab_name):
         # Спеціальна обробка для "Продукти в магазині"
         elif tab_name in ['Продукти у магазині', 'Продукти в магазині']:
             product_name = values['назва'].get()
+            prica = values.get('ціна').get()
+            try:
+                price_val = float(prica)
+                if price_val <= 0:
+                    messagebox.showerror("Помилка", "Ціна повинна бути більше нуля.")
+                    return
+            except ValueError:
+                messagebox.showerror("Помилка", "Ціна повинна бути числом.")
+                return
+            
             if not product_name:
                 messagebox.showerror("Помилка", "Поле 'назва' є обов’язковим.")
                 return
@@ -132,6 +166,24 @@ def add_new_item(self, tab_name):
                 else:
                     messagebox.showerror("Помилка", f"Невідоме поле: {col}")
                     return
+                
+        elif tab_name == 'Постійні клієнти':
+            phone_number = values.get('номер телефона').get()
+            if len(phone_number) > 13:
+                messagebox.showerror("Помилка", "Номер телефону не може перевищувати 13 символів.")
+                return
+            discount = values.get('відсоток знижки').get()
+            try:
+                discount_val = float(discount)
+                if discount_val < 0 or discount_val > 100:
+                    messagebox.showerror("Помилка", "Відсоток знижки повинен бути в межах від 0 до 100.")
+                    return
+            except ValueError:
+                messagebox.showerror("Помилка", "Відсоток знижки повинен бути числом.")
+                return
+            
+            processed_values = new_values
+            db_columns = [COLUMN_MAPPING[tab_name][col] for col in columns]
 
         # Для інших вкладок
         else:
@@ -257,6 +309,46 @@ def on_cell_double_click(self, event, tab_name):
             if tab_name == 'Працівники' and column_name == 'пароль' and not new_value:
                 messagebox.showerror("Помилка", "Пароль не може бути порожнім.")
                 return
+
+            elif column_name == 'дата народження':
+                age = calculate_age(new_value)
+                if age is not None and age < 18:
+                    messagebox.showerror("Помилка", "Працівник повинен бути старше 18 років.")
+                    return
+            elif column_name == 'зарплата':
+                try:
+                    salary_val = float(new_value)
+                    if salary_val <= 0:
+                        messagebox.showerror("Помилка", "Зарплата повинна бути більше нуля.")
+                        return
+                except ValueError:
+                    messagebox.showerror("Помилка", "Зарплата повинна бути числом.")
+                    return
+            elif tab_name == 'Продукти в магазині' and column_name == 'ціна':
+                try:
+                    price_val = float(new_value)
+                    if price_val <= 0:
+                        messagebox.showerror("Помилка", "Ціна повинна бути більше нуля.")
+                        return
+                except ValueError:
+                    messagebox.showerror("Помилка", "Ціна повинна бути числом.")
+                    return
+            elif tab_name == 'Постійні клієнти':
+                if column_name == 'номер телефона':
+                    phone_number = new_value
+                    if len(phone_number) > 13:
+                        messagebox.showerror("Помилка", "Номер телефону не може перевищувати 13 символів.")
+                        return
+                elif column_name == 'відсоток знижки':
+                    discount = new_value
+                    try:
+                        discount_val = float(discount)
+                        if discount_val < 0 or discount_val > 100:
+                            messagebox.showerror("Помилка", "Відсоток знижки повинен бути в межах від 0 до 100.")
+                            return
+                    except ValueError:
+                        messagebox.showerror("Помилка", "Відсоток знижки повинен бути числом.")
+                        return
 
             values = list(tree.item(item, 'values'))
             if tab_name == 'Працівники' and column_name == 'пароль':
