@@ -201,8 +201,6 @@ class DashboardView:
         if tab_text == 'Постійні клієнти':
             add_button = tk.Button(button_frame, text="+", font=("Space Mono", 16, "bold"), width=3, command=lambda t=tab_text: self.add_new_item(t))
             add_button.pack(side='right', padx=(5, 0))
-            delete_button = tk.Button(button_frame, text="Видалити", font=("Space Mono", 12), command=lambda t=tab_text: self.delete_selected_item(t))
-            delete_button.pack(side='right', padx=(5, 0))
 
         tree_frame = tk.Frame(container_frame)
         tree_frame.pack(fill='both', expand=True)
