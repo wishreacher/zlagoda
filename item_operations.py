@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from datetime import datetime, date
 import bcrypt  # Added for password hashing
-
+import re 
 
 # Mapping of tab names to database table names
 TABLE_MAPPING = {
@@ -73,6 +73,107 @@ def calculate_age(birth_date_str):
     except ValueError:
         return None
 
+def validate_text(value, field_name, allow_empty=False):
+    """Validate that input is text (letters, spaces, hyphens) and not numbers"""
+    if not value and allow_empty:
+        return True
+    if not value:
+        messagebox.showerror("Помилка", f"Поле '{field_name}' не може бути порожнім.")
+        return False
+    if not re.match(r'^[a-zA-Zа-яА-ЯіІїЇєЄґҐ\s\-]+$', value):
+        messagebox.showerror("Помилка", f"Поле '{field_name}' має містити лише літери, пробіли або дефіси.")
+        return False
+    return True
+
+def validate_id(value, field_name):
+    """Validate that input is a positive integer"""
+    if not value:
+        messagebox.showerror("Помилка", f"Поле '{field_name}' не може бути порожнім.")
+        return False
+    try:
+        val = int(value)
+        if val <= 0:
+            messagebox.showerror("Помилка", f"Поле '{field_name}' має бути додатнім числом.")
+            return False
+        return True
+    except ValueError:
+        messagebox.showerror("Помилка", f"Поле '{field_name}' має бути цілим числом.")
+        return False
+
+def validate_float(value, field_name, min_val=0):
+    """Validate that input is a positive float"""
+    if not value:
+        messagebox.showerror("Помилка", f"Поле '{field_name}' не може бути порожнім.")
+        return False
+    try:
+        val = float(value)
+        if val < min_val:
+            messagebox.showerror("Помилка", f"Поле '{field_name}' має бути не менше {min_val}.")
+            return False
+        return True
+    except ValueError:
+        messagebox.showerror("Помилка", f"Поле '{field_name}' має бути числом.")
+        return False
+
+def validate_date(value, field_name):
+    """Validate date in YYYY-MM-DD format"""
+    if not value:
+        messagebox.showerror("Помилка", f"Поле '{field_name}' не може бути порожнім.")
+        return False
+    try:
+        datetime.strptime(value, '%Y-%m-%d')
+        return True
+    except ValueError:
+        messagebox.showerror("Помилка", f"Поле '{field_name}' має бути у форматі РРРР-ММ-ДД.")
+        return False
+
+def validate_phone(value):
+    """Validate phone number format"""
+    if not value:
+        messagebox.showerror("Помилка", "Поле 'номер телефона' не може бути порожнім.")
+        return False
+    if len(value) > 13:
+        messagebox.showerror("Помилка", "Номер телефону не може перевищувати 13 символів.")
+        return False
+    if not re.fullmatch(r'\d+', value):
+        messagebox.showerror("Помилка", "Поле 'номер телефону' має складатись з цифр.")
+        return False
+    return True
+
+def validate_zip_code(value):
+    """Validate zip code (5 digits)"""
+    if not value:
+        messagebox.showerror("Помилка", "Поле 'індекс' не може бути порожнім.")
+        return False
+    if not re.fullmatch(r'\d+', value):
+        messagebox.showerror("Помилка", "Поле 'індекс' має складатись з цифр.")
+        return False
+    return True
+
+def validate_promotional(value):
+    """Validate promotional product (Так/Ні)"""
+    if not value:
+        messagebox.showerror("Помилка", "Поле 'акційнний товар' не може бути порожнім.")
+        return False
+    if value.lower() not in ['так', 'ні', 'yes', 'no']:
+        messagebox.showerror("Помилка", "Поле 'акційнний товар' має бути 'Так' або 'Ні'.")
+        return False
+    return True
+
+def validate_password(value):
+    """Validate password (non-empty)"""
+    if not value:
+        messagebox.showerror("Помилка", "Пароль не може бути порожнім.")
+        return False
+    return True
+
+def validate_address(value):
+    """Validate address (letters, numbers, spaces, punctuation)"""
+    if not value:
+        messagebox.showerror("Помилка", "Поле 'адреса' не може бути порожнім.")
+        return False
+    return True
+
 def add_new_item(self, tab_name):
     """Handle adding a new item to the specified tab with password hashing for employees"""
     columns = self.entity_columns[tab_name]
@@ -97,27 +198,99 @@ def add_new_item(self, tab_name):
     def save_item():
         # Спеціальна обробка для "Працівники" (хешування пароля)
         new_values = [entry.get() for entry in values.values()]
+        processed_values = []
+        db_columns = []
+
+        # CHANGE: Validate inputs based on tab
+        for col, val in zip(columns, new_values):
+            if tab_name == 'Продукти':
+                if col == 'назва':
+                    if not validate_text(val, col):
+                        return
+                elif col == 'id продукту':
+                    if not validate_id(val, col):
+                        return
+                elif col == 'id категорії':
+                    if not validate_id(val, col):
+                        return
+                elif col == 'Опис':
+                    if not validate_text(val, col, allow_empty=True):
+                        return
+            elif tab_name == 'Продукти в магазині':
+                if col == 'UPC':
+                    if not validate_id(val, col):
+                        return
+                elif col == 'id продукту':
+                    if not validate_id(val, col):
+                        return
+                elif col == 'ціна':
+                    if not validate_float(val, col, min_val=0.01):
+                        return
+                elif col == 'наявність':
+                    if not validate_id(val, col):
+                        return
+                elif col == 'акційнний товар':
+                    if not validate_promotional(val):
+                        return
+            elif tab_name == 'Категорії':
+                if col == 'назва':
+                    if not validate_text(val, col):
+                        return
+                elif col == 'номер категорії':
+                    if not validate_id(val, col):
+                        return
+            elif tab_name == 'Працівники':
+                if col == 'id працівника':
+                    if not validate_id(val, col):
+                        return
+                elif col in ['прізвище', 'імʼя', 'по-батькові', 'посада']:
+                    if not validate_text(val, col, allow_empty=(col == 'по-батькові')):
+                        return
+                elif col == 'зарплата':
+                    if not validate_float(val, col, min_val=0.01):
+                        return
+                elif col in ['дата народження', 'дата початку']:
+                    if not validate_date(val, col):
+                        return
+                    if col == 'дата народження':
+                        age = calculate_age(val)
+                        if age is not None and age < 18:
+                            messagebox.showerror("Помилка", "Працівник повинен бути старше 18 років.")
+                            return
+                elif col == 'адреса':
+                    if not validate_address(val):
+                        return
+                elif col == 'пароль':
+                    if not validate_password(val):
+                        return
+            elif tab_name == 'Постійні клієнти':
+                if col == 'номер картки':
+                    if not validate_id(val, col):
+                        return
+                elif col in ['прізвище', 'імʼя', 'по-батькові']:
+                    if not validate_text(val, col, allow_empty=(col == 'по-батькові')):
+                        return
+                elif col == 'номер телефона':
+                    if not validate_phone(val):
+                        return
+                elif col == 'адреса':
+                    if not validate_address(val):
+                        return
+                elif col == 'індекс':
+                    if not validate_zip_code(val):
+                        return
+                elif col == 'відсоток знижки':
+                    if not validate_float(val, col, min_val=0):
+                        return
+                    try:
+                        discount_val = float(val)
+                        if discount_val > 100:
+                            messagebox.showerror("Помилка", "Відсоток знижки не може перевищувати 100.")
+                            return
+                    except ValueError:
+                        messagebox.showerror("Помилка", "Відсоток знижки має бути числом.")
+                        return
         if tab_name == 'Працівники':
-            for col, val in zip(columns, new_values):
-                if col == 'пароль' and not val:
-                    messagebox.showerror("Помилка", "Пароль не може бути порожнім.")
-                    return
-            date_of_birth = values.get('дата народження').get()
-            age = calculate_age(date_of_birth)
-            if age is not None and age < 18:
-                messagebox.showerror("Помилка", "Працівник повинен бути старше 18 років.")
-                return
-            salary = values.get('зарплата').get()
-            try:
-                salary_val = float(salary)
-                if salary_val <= 0:
-                    messagebox.showerror("Помилка", "Зарплата повинна бути більше нуля.")
-                    return
-            except ValueError:
-                messagebox.showerror("Помилка", "Зарплата повинна бути числом.")
-                return
-            
-            processed_values = []
             for col, val in zip(columns, new_values):
                 if col == 'пароль':
                     hashed_password = bcrypt.hashpw(val.encode('utf-8'), bcrypt.gensalt())
@@ -129,26 +302,16 @@ def add_new_item(self, tab_name):
 
         # Спеціальна обробка для "Продукти в магазині"
         elif tab_name in ['Продукти у магазині', 'Продукти в магазині']:
-            product_name = values['назва'].get()
-            prica = values.get('ціна').get()
-            try:
-                price_val = float(prica)
-                if price_val <= 0:
-                    messagebox.showerror("Помилка", "Ціна повинна бути більше нуля.")
-                    return
-            except ValueError:
-                messagebox.showerror("Помилка", "Ціна повинна бути числом.")
-                return
-            
-            if not product_name:
+            product_name = values.get('назва', tk.Entry(dialog)).get()            
+            if product_name and not validate_text(product_name, 'назва'):
                 messagebox.showerror("Помилка", "Поле 'назва' є обов’язковим.")
                 return
 
             product = self.db.fetch_filtered("SELECT id_product FROM Product WHERE product_name = ?", (product_name,))
-            if not product:
+            if product_name and not product:
                 messagebox.showerror("Помилка", f"Продукт з назвою '{product_name}' не знайдено.")
                 return
-            id_product = product[0][0]
+            id_product = product[0][0] if product else None
 
             columns_to_insert = [col for col in columns if col != 'назва']
             db_columns = []
@@ -167,27 +330,9 @@ def add_new_item(self, tab_name):
                     messagebox.showerror("Помилка", f"Невідоме поле: {col}")
                     return
                 
-        elif tab_name == 'Постійні клієнти':
-            phone_number = values.get('номер телефона').get()
-            if len(phone_number) > 13:
-                messagebox.showerror("Помилка", "Номер телефону не може перевищувати 13 символів.")
-                return
-            discount = values.get('відсоток знижки').get()
-            try:
-                discount_val = float(discount)
-                if discount_val < 0 or discount_val > 100:
-                    messagebox.showerror("Помилка", "Відсоток знижки повинен бути в межах від 0 до 100.")
-                    return
-            except ValueError:
-                messagebox.showerror("Помилка", "Відсоток знижки повинен бути числом.")
-                return
-            
-            processed_values = new_values
-            db_columns = [COLUMN_MAPPING[tab_name][col] for col in columns]
-
         # Для інших вкладок
         else:
-            processed_values = [entry.get() for entry in values.values()]
+            processed_values = new_values
             db_columns = [COLUMN_MAPPING[tab_name][col] for col in columns]
 
         table_name = TABLE_MAPPING[tab_name]
@@ -306,48 +451,92 @@ def on_cell_double_click(self, event, tab_name):
     def save_edit():
         new_value = entry.get()
         if new_value != ("" if tab_name == 'Працівники' and column_name == 'пароль' else current_value):
-            if tab_name == 'Працівники' and column_name == 'пароль' and not new_value:
-                messagebox.showerror("Помилка", "Пароль не може бути порожнім.")
-                return
-
-            elif column_name == 'дата народження':
-                age = calculate_age(new_value)
-                if age is not None and age < 18:
-                    messagebox.showerror("Помилка", "Працівник повинен бути старше 18 років.")
-                    return
-            elif column_name == 'зарплата':
-                try:
-                    salary_val = float(new_value)
-                    if salary_val <= 0:
-                        messagebox.showerror("Помилка", "Зарплата повинна бути більше нуля.")
+            if tab_name == 'Продукти':
+                if column_name == 'назва':
+                    if not validate_text(new_value, column_name):
                         return
-                except ValueError:
-                    messagebox.showerror("Помилка", "Зарплата повинна бути числом.")
-                    return
-            elif tab_name == 'Продукти в магазині' and column_name == 'ціна':
-                try:
-                    price_val = float(new_value)
-                    if price_val <= 0:
-                        messagebox.showerror("Помилка", "Ціна повинна бути більше нуля.")
+                elif column_name == 'id продукту':
+                    if not validate_id(new_value, column_name):
                         return
-                except ValueError:
-                    messagebox.showerror("Помилка", "Ціна повинна бути числом.")
-                    return
+                elif column_name == 'id категорії':
+                    if not validate_id(new_value, column_name):
+                        return
+                elif column_name == 'Опис':
+                    if not validate_text(new_value, column_name, allow_empty=True):
+                        return
+            elif tab_name == 'Продукти в магазині':
+                if column_name == 'UPC':
+                    if not validate_id(new_value, column_name):
+                        return
+                elif column_name == 'id продукту':
+                    if not validate_id(new_value, column_name):
+                        return
+                elif column_name == 'ціна':
+                    if not validate_float(new_value, column_name, min_val=0.01):
+                        return
+                elif column_name == 'наявність':
+                    if not validate_id(new_value, column_name):
+                        return
+                elif column_name == 'акційнний товар':
+                    if not validate_promotional(new_value):
+                        return
+            elif tab_name == 'Категорії':
+                if column_name == 'назва':
+                    if not validate_text(new_value, column_name):
+                        return
+                elif column_name == 'номер категорії':
+                    if not validate_id(new_value, column_name):
+                        return
+            elif tab_name == 'Працівники':
+                if column_name == 'id працівника':
+                    if not validate_id(new_value, column_name):
+                        return
+                elif column_name in ['прізвище', 'імʼя', 'по-батькові', 'посада']:
+                    if not validate_text(new_value, column_name, allow_empty=(column_name == 'по-батькові')):
+                        return
+                elif column_name == 'зарплата':
+                    if not validate_float(new_value, column_name, min_val=0.01):
+                        return
+                elif column_name in ['дата народження', 'дата початку']:
+                    if not validate_date(new_value, column_name):
+                        return
+                    if column_name == 'дата народження':
+                        age = calculate_age(new_value)
+                        if age is not None and age < 18:
+                            messagebox.showerror("Помилка", "Працівник повинен бути старше 18 років.")
+                            return
+                elif column_name == 'адреса':
+                    if not validate_address(new_value):
+                        return
+                elif column_name == 'пароль':
+                    if not validate_password(new_value):
+                        return
             elif tab_name == 'Постійні клієнти':
-                if column_name == 'номер телефона':
-                    phone_number = new_value
-                    if len(phone_number) > 13:
-                        messagebox.showerror("Помилка", "Номер телефону не може перевищувати 13 символів.")
+                if column_name == 'номер картки':
+                    if not validate_id(new_value, column_name):
+                        return
+                elif column_name in ['прізвище', 'імʼя', 'по-батькові']:
+                    if not validate_text(new_value, column_name, allow_empty=(column_name == 'по-батькові')):
+                        return
+                elif column_name == 'номер телефона':
+                    if not validate_phone(new_value):
+                        return
+                elif column_name == 'адреса':
+                    if not validate_address(new_value):
+                        return
+                elif column_name == 'індекс':
+                    if not validate_zip_code(new_value):
                         return
                 elif column_name == 'відсоток знижки':
-                    discount = new_value
+                    if not validate_float(new_value, column_name, min_val=0):
+                        return
                     try:
-                        discount_val = float(discount)
-                        if discount_val < 0 or discount_val > 100:
-                            messagebox.showerror("Помилка", "Відсоток знижки повинен бути в межах від 0 до 100.")
+                        discount_val = float(new_value)
+                        if discount_val > 100:
+                            messagebox.showerror("Помилка", "Відсоток знижки не може перевищувати 100.")
                             return
                     except ValueError:
-                        messagebox.showerror("Помилка", "Відсоток знижки повинен бути числом.")
+                        messagebox.showerror("Помилка", "Відсоток знижки має бути числом.")
                         return
 
             values = list(tree.item(item, 'values'))
