@@ -261,10 +261,10 @@ def update_receipt_treeview(self):
     tree = self.treeviews['Чеки']
     tree.delete(*tree.get_children())
 
-    cashier_display = self.recept_cashier_var.get()
+    cashier_display = self.receipt_cashier_var.get()
     cashier_id = self.cashier_mapping.get(cashier_display, "Всі касири")
-    start_date = self.recept_start_date_var.get()
-    end_date = self.recept_end_date_var.get()
+    start_date = self.receipt_start_date_var.get()
+    end_date = self.receipt_end_date_var.get()
     today = date.today().strftime('%Y-%m-%d')
 
     if not start_date and not end_date:
@@ -314,11 +314,11 @@ def update_receipt_treeview(self):
 
 def update_receipt_reports(self):
     """Update the sales and quantity reports in the Check tab"""
-    cashier_display = self.recept_cashier_var.get()
+    cashier_display = self.receipt_cashier_var.get()
     cashier_id = self.cashier_mapping.get(cashier_display, "Всі касири")
-    start_date = self.recept_start_date_var.get()
-    end_date = self.recept_end_date_var.get()
-    upc = self.recept_product_var.get()
+    start_date = self.receipt_start_date_var.get()
+    end_date = self.receipt_end_date_var.get()
+    upc = self.receipt_product_var.get()
     today = date.today().strftime('%Y-%m-%d')
 
     if not start_date and not end_date:
