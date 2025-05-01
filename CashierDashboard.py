@@ -202,6 +202,14 @@ class DashboardView:
             )
             today_button.pack(side='right', padx=(5, 0))
 
+            all_receipts_button = tk.Button(
+                button_frame,
+                text="Всі чеки",
+                font=("Space Mono", 12),
+                command=self.clear_date_filters
+            )
+            all_receipts_button.pack(side='right', padx=(5, 0))
+
         if tab_text == 'Постійні клієнти':
             add_button = tk.Button(button_frame, text="+", font=("Space Mono", 16, "bold"), width=3, command=lambda t=tab_text: self.add_new_item(t))
             add_button.pack(side='right', padx=(5, 0))
@@ -240,6 +248,12 @@ class DashboardView:
         if tab_text == 'Постійні клієнти':
             tree.bind('<Double-1>', lambda event, t=tab_text: self.on_cell_double_click(event, t))
 
+    def clear_date_filters(self):
+        """Clear date filters and show all receipts for the last 3 years"""
+        self.cashier_receipt_start_date_var.set("")
+        self.cashier_receipt_end_date_var.set("")
+        self.update_cashier_receipt_treeview()
+        
     def show_pdf_preview(self, filename, check_number):
         preview_window = tk.Toplevel(self.root)
         preview_window.title(f"Перегляд чеку: {check_number}")
