@@ -622,6 +622,9 @@ def on_cell_double_click(self, event, tab_name):
             # Оновлення відповідних treeview для інших вкладок
             if tab_name == 'Працівники':
                 self.update_employee_treeview()
+
+            if hasattr(self, 'update_cashier_customer_treeview'):
+                self.update_cashier_customer_treeview()
             elif tab_name == 'Постійні клієнти':
                 self.update_customer_treeview()
             elif tab_name == 'Продукти':
