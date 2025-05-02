@@ -148,7 +148,7 @@ def update_employee_treeview(self):
         params.append(f"%{search_term}%")
 
     if self.show_cashiers_only:
-        conditions.append("role = 'Cashier'")
+        conditions.append("role = 'cashier'")
 
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
