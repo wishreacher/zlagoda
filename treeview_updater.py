@@ -345,6 +345,7 @@ def update_receipt_reports(self):
         SELECT SUM(c.sum_total)
         FROM "Check" c
         JOIN Employee e ON c.id_employee = e.id_employee
+        JOIN Sale s ON c.check_number = s.check_number
     '''
     conditions_specific = []
     params_specific = []
@@ -352,6 +353,10 @@ def update_receipt_reports(self):
     if cashier_id != "Всі касири":
         conditions_specific.append("c.id_employee = ?")
         params_specific.append(cashier_id)
+
+    if upc:
+        conditions_specific.append('s."UPC" = ?')
+        params_specific.append(upc)
 
     if start and end:
         conditions_specific.append("c.print_date BETWEEN ? AND ?")
@@ -377,6 +382,10 @@ def update_receipt_reports(self):
     '''
     conditions_all = []
     params_all = []
+
+    if upc:
+        conditions_specific.append('s."UPC" = ?')
+        params_all.append(upc)
 
     if start and end:
         conditions_all.append("c.print_date BETWEEN ? AND ?")
