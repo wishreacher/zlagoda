@@ -79,8 +79,9 @@ class ManagerDashboard:
             'Продукти в магазині': ['UPC', 'id продукту', 'назва', 'ціна', 'наявність', 'акційнний товар'],
             'Категорії': ['назва', 'номер категорії'],
             'Працівники': ['id працівника', 'прізвище', 'імʼя', 'по-батькові', 'посада', 'зарплата', 'дата народження', 'дата початку', 'адреса', 'телефон', 'пароль'],
-            'Постійні клієнти': ['номер картки', 'прізвище', 'імʼя', 'по-батькові', 'номер телефона', 'адреса', 'індекс', 'відсоток знижки'],
+            'Постійні клієнти': ['номер картки', 'прізвище', 'імʼя', 'по-батькові', 'номер телефона', 'вулиця', 'індекс', 'відсоток знижки'],
             'Чеки': ['номер чеку', 'касир', 'дата', 'загальна сума'],
+            'Статистика': [],  
         }
 
         # Store treeviews for later reference
@@ -140,6 +141,138 @@ class ManagerDashboard:
         frame = tk.Frame(notebook)
         notebook.add(frame, text=tab_text)
 
+        if tab_text == 'Статистика':
+            # Create a container frame for the statistics tab
+            container_frame = tk.Frame(frame)
+            container_frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+            # Define queries with descriptions and column names
+            queries = [
+                {
+                    'description': 'Всі касири, які продали хоча б один товар кожної категорії',
+                    'query': """
+                        SELECT DISTINCT e.id_employee, e.surname, e.name
+                        FROM Employee e
+                        JOIN [Check] c ON e.id_employee = c.id_employee
+                        JOIN Sale s ON c.check_number = s.check_number
+                        JOIN Store_Product sp ON s.UPC = sp.UPC
+                        JOIN Product p ON sp.id_product = p.id_product
+                        WHERE e.role = 'cashier'
+                        GROUP BY e.id_employee, e.surname, e.name
+                        HAVING COUNT(DISTINCT p.id_category) = (SELECT COUNT(*) FROM Category)
+                    """,
+                    'columns': ['ID працівника', 'Прізвище', "Ім'я"]
+                },
+                {
+                    'description': 'Топ-5 товарів за кількістю продажів',
+                    'query': """
+                        SELECT p.product_name, sp.UPC, SUM(s.product_number) as total_sold
+                        FROM Sale s
+                        JOIN Store_Product sp ON s.UPC = sp.UPC
+                        JOIN Product p ON sp.id_product = p.id_product
+                        GROUP BY p.product_name, sp.UPC
+                        ORDER BY total_sold DESC
+                        LIMIT 5
+                    """,
+                    'columns': ['Назва товару', 'UPC', 'Кількість проданих']
+                },
+                {
+                    'description': 'Касири з найбільшою сумою продажів за останній місяць',
+                    'query': """
+                        SELECT e.surname, e.name, SUM(c.sum_total) as total_sales
+                        FROM Employee e
+                        JOIN [Check] c ON e.id_employee = c.id_employee
+                        WHERE c.print_date >= date('now', '-1 month')
+                        GROUP BY e.id_employee, e.surname, e.name
+                        ORDER BY total_sales DESC
+                    """,
+                    'columns': ['Прізвище', "Ім'я", 'Сума продажів']
+                },
+                {
+                    'description': 'Категорії з найбільшою кількістю проданих товарів',
+                    'query': """
+                        SELECT c.category_name, SUM(s.product_number) as total_sold
+                        FROM Sale s
+                        JOIN Store_Product sp ON s.UPC = sp.UPC
+                        JOIN Product p ON sp.id_product = p.id_product
+                        JOIN Category c ON p.id_category = c.category_number
+                        GROUP BY c.category_name
+                        ORDER BY total_sold DESC
+                    """,
+                    'columns': ['Назва категорії', 'Кількість проданих']
+                },
+                {
+                    'description': 'Клієнти з найвищими знижками',
+                    'query': """
+                        SELECT c.card_number, c.surname, c.name, c.discount_percentage
+                        FROM Customer c
+                        ORDER BY c.discount_percentage DESC
+                        LIMIT 5
+                    """,
+                    'columns': ['Номер картки', 'Прізвище', "Ім'я", 'Відсоток знижки']
+                },
+                {
+                    'description': 'Чеки з найбільшою кількістю товарів',
+                    'query': """
+                        SELECT c.check_number, COUNT(s.UPC) as item_count, c.sum_total
+                        FROM [Check] c
+                        JOIN Sale s ON c.check_number = s.check_number
+                        GROUP BY c.check_number, c.sum_total
+                        ORDER BY item_count DESC
+                        LIMIT 5
+                    """,
+                    'columns': ['Номер чеку', 'Кількість товарів', 'Загальна сума']
+                }
+            ]
+
+            # Create a frame for the query list
+            query_frame = tk.Frame(container_frame)
+            query_frame.pack(fill='x', pady=5)
+
+            # Create a Treeview for displaying query results
+            tree_frame = tk.Frame(container_frame)
+            tree_frame.pack(fill='both', expand=True)
+
+            tree = ttk.Treeview(tree_frame, show='headings')
+            self.treeviews[tab_text] = tree
+
+            # Add scrollbars
+            v_scrollbar = tk.Scrollbar(tree_frame, orient='vertical', command=tree.yview)
+            h_scrollbar = tk.Scrollbar(tree_frame, orient='horizontal', command=tree.xview)
+            tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+
+            # Layout the Treeview and scrollbars using grid
+            tree.grid(row=0, column=0, sticky='nsew')
+            v_scrollbar.grid(row=0, column=1, sticky='ns')
+            h_scrollbar.grid(row=1, column=0, sticky='ew')
+
+            # Configure the frame to expand the Treeview
+            tree_frame.grid_rowconfigure(0, weight=1)
+            tree_frame.grid_columnconfigure(0, weight=1)
+
+            # Add each query description and button
+            for idx, query_info in enumerate(queries):
+                query_row_frame = tk.Frame(query_frame)
+                query_row_frame.pack(fill='x', pady=2)
+
+                description_label = tk.Label(
+                    query_row_frame,
+                    text=f"{idx + 1}. {query_info['description']}",
+                    font=("Space Mono", 12),
+                    anchor='w'
+                )
+                description_label.pack(side='left', fill='x', expand=True, padx=5)
+
+                show_button = tk.Button(
+                    query_row_frame,
+                    text="Показати",
+                    font=("Space Mono", 12),
+                    command=lambda q=query_info['query'], c=query_info['columns']: self.show_query_results(q, c, tree)
+                )
+                show_button.pack(side='right', padx=5)
+
+            return
+        
         # Create a container frame that will hold the buttons and treeview
         container_frame = tk.Frame(frame)
         container_frame.pack(fill='both', expand=True, padx=10, pady=10)

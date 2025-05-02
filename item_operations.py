@@ -62,7 +62,7 @@ COLUMN_MAPPING = {
         'імʼя': 'cust_name',
         'по-батькові': 'cust_patronymic',
         'номер телефона': 'phone_number',
-        'адреса': 'street',
+        'вулиця': 'street',
         'індекс': 'zip_code',
         'відсоток знижки': 'percent'
     },
@@ -157,8 +157,8 @@ def validate_zip_code(value):
     if not value:
         messagebox.showerror("Помилка", "Поле 'індекс' не може бути порожнім.")
         return False
-    if not re.fullmatch(r'\d+', value):
-        messagebox.showerror("Помилка", "Поле 'індекс' має складатись з цифр.")
+    if not re.fullmatch(r'^\d{5}$', value):  # Перевірка на 5 цифр
+        messagebox.showerror("Помилка", "Індекс має складатися з 5 цифр.")
         return False
     return True
 

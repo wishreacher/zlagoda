@@ -167,7 +167,7 @@ def update_customer_treeview(self):
 
     discount_search = self.customer_search_var.get()
 
-    query = "SELECT card_number, cust_surname, cust_name, cust_patronymic, phone_number, street || ', ' || zip_code AS address, percent FROM Customer_Card"
+    query = "SELECT card_number, cust_surname, cust_name, cust_patronymic, phone_number, street, zip_code, percent FROM Customer_Card"
     conditions = []
     params = []
 
