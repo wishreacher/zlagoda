@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 # Cashier Dashboard Methods
 def update_cashier_product_treeview(self):
@@ -97,7 +97,7 @@ def update_cashier_receipt_treeview(self):
     today = date.today().strftime('%Y-%m-%d')
 
     if not start_date and not end_date:
-        start_date = today
+        start_date = (date.today() - timedelta(days=30)).strftime('%Y-%m-%d')  # За останні 30 днів
         end_date = today
 
     try:
@@ -266,7 +266,7 @@ def update_receipt_treeview(self):
     today = date.today().strftime('%Y-%m-%d')
 
     if not start_date and not end_date:
-        start_date = today
+        start_date = (date.today() - timedelta(days=30)).strftime('%Y-%m-%d')  # За останні 30 днів
         end_date = today
 
     try:
