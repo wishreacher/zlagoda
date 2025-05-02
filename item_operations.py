@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from datetime import datetime, date
 import bcrypt  # Added for password hashing
-import re 
+import re
 
 # Mapping of tab names to database table names
 TABLE_MAPPING = {
@@ -77,8 +77,9 @@ def calculate_age(birth_date_str):
     """Calculate age from birth date string in YYYY-MM-DD format"""
     try:
         birth_date = datetime.strptime(birth_date_str, '%Y-%m-%d').date()
-        current_date = date.today() 
-        age = current_date.year - birth_date.year - ((current_date.month, current_date.day) < (birth_date.month, birth_date.day))
+        current_date = date.today()
+        age = current_date.year - birth_date.year - (
+                    (current_date.month, current_date.day) < (birth_date.month, birth_date.day))
         return age
     except ValueError:
         return None
@@ -312,7 +313,7 @@ def add_new_item(self, tab_name):
 
         # Спеціальна обробка для "Продукти в магазині"
         elif tab_name in ['Продукти у магазині', 'Продукти в магазині']:
-            product_name = values.get('назва', tk.Entry(dialog)).get()            
+            product_name = values.get('назва', tk.Entry(dialog)).get()
             if product_name and not validate_text(product_name, 'назва'):
                 messagebox.showerror("Помилка", "Поле 'назва' є обов’язковим.")
                 return
@@ -339,7 +340,6 @@ def add_new_item(self, tab_name):
                 else:
                     messagebox.showerror("Помилка", f"Невідоме поле: {col}")
                     return
-                
         # Для інших вкладок
         else:
             processed_values = new_values
@@ -456,7 +456,6 @@ def on_cell_double_click(self, event, tab_name):
 
     current_value = tree.item(item, 'values')[column_index]
 
-
     edit_dialog = tk.Toplevel(self.root)
     edit_dialog.title(f"Edit {column_name}")
     edit_dialog.geometry("300x150")
@@ -478,124 +477,148 @@ def on_cell_double_click(self, event, tab_name):
     def save_edit():
         new_value = entry.get()
         if new_value != ("" if tab_name == 'Працівники' and column_name == 'пароль' else current_value):
-            if tab_name == 'Продукти':
-                if column_name == 'назва':
-                    if not validate_text(new_value, column_name):
-                        return
-                elif column_name == 'id продукту':
-                    if not validate_id(new_value, column_name):
-                        return
-                elif column_name == 'id категорії':
-                    if not validate_id(new_value, column_name):
-                        return
-                elif column_name == 'Опис':
-                    if not validate_text(new_value, column_name, allow_empty=True):
-                        return
-            elif tab_name == 'Продукти в магазині':
-                if column_name == 'UPC':
-                    if not validate_id(new_value, column_name):
-                        return
-                elif column_name == 'id продукту':
-                    if not validate_id(new_value, column_name):
-                        return
-                elif column_name == 'ціна':
-                    if not validate_float(new_value, column_name, min_val=0.01):
-                        return
-                elif column_name == 'наявність':
-                    if not validate_id(new_value, column_name):
-                        return
-                elif column_name == 'акційнний товар':
-                    if not validate_promotional(new_value):
-                        return
-            elif tab_name == 'Категорії':
-                if column_name == 'назва':
-                    if not validate_text(new_value, column_name):
-                        return
-                elif column_name == 'номер категорії':
-                    if not validate_id(new_value, column_name):
-                        return
-            elif tab_name == 'Працівники':
-                if column_name == 'id працівника':
-                    if not validate_id(new_value, column_name):
-                        return
-                elif column_name in ['прізвище', 'імʼя', 'по-батькові', 'посада']:
-                    if not validate_text(new_value, column_name, allow_empty=(column_name == 'по-батькові')):
-                        return
-                elif column_name == 'зарплата':
-                    if not validate_float(new_value, column_name, min_val=0.01):
-                        return
-                elif column_name in ['дата народження', 'дата початку']:
-                    if not validate_date(new_value, column_name):
-                        return
-                    if column_name == 'дата народження':
-                        age = calculate_age(new_value)
-                        if age is not None and age < 18:
-                            messagebox.showerror("Помилка", "Працівник повинен бути старше 18 років.")
-                            return
-                elif column_name == 'адреса':
-                    if not validate_address(new_value):
-                        return
-                elif column_name == 'пароль':
-                    if not validate_password(new_value):
-                        return
-            elif tab_name == 'Постійні клієнти':
-                if column_name == 'номер картки':
-                    if not validate_id(new_value, column_name):
-                        return
-                elif column_name in ['прізвище', 'імʼя', 'по-батькові']:
-                    if not validate_text(new_value, column_name, allow_empty=(column_name == 'по-батькові')):
-                        return
-                elif column_name == 'номер телефона':
-                    if not validate_phone(new_value):
-                        return
-                elif column_name == 'адреса':
-                    if not validate_address(new_value):
-                        return
-                elif column_name == 'індекс':
-                    if not validate_zip_code(new_value):
-                        return
-                elif column_name == 'відсоток знижки':
-                    if not validate_float(new_value, column_name, min_val=0):
-                        return
-                    try:
-                        discount_val = float(new_value)
-                        if discount_val > 100:
-                            messagebox.showerror("Помилка", "Відсоток знижки не може перевищувати 100.")
-                            return
-                    except ValueError:
-                        messagebox.showerror("Помилка", "Відсоток знижки має бути числом.")
-                        return
-
-            values = list(tree.item(item, 'values'))
-            if tab_name == 'Працівники' and column_name == 'пароль':
-                hashed_password = bcrypt.hashpw(new_value.encode('utf-8'), bcrypt.gensalt())
-                new_value = hashed_password.decode('utf-8')
-                values[column_index] = "********"  # Display placeholder in UI
-            else:
+            # Спеціальна обробка для колонки "назва" в "Продукти в магазині"
+            if tab_name == 'Продукти в магазині' and column_name == 'назва':
+                if not validate_text(new_value, 'назва'):
+                    return
+                values = tree.item(item, 'values')
+                id_product = values[1]  # 'id продукту' є другим стовпцем (індекс 1)
+                query = "UPDATE Product SET product_name = ? WHERE id_product = ?"
+                try:
+                    self.db.begin_transaction()
+                    self.db.execute_query(query, (new_value, id_product))
+                    self.db.commit_transaction()
+                except Exception as e:
+                    self.db.rollback_transaction()
+                    messagebox.showerror("Помилка", f"Не вдалося оновити назву продукту: {str(e)}")
+                    return
+                # Оновлення treeview
+                values = list(values)
                 values[column_index] = new_value
+                tree.item(item, values=values)
+                self.update_store_product_treeview()
+                self.update_product_treeview()
+            else:
+                # Існуюча логіка валідації для інших колонок
+                if tab_name == 'Продукти':
+                    if column_name == 'назва':
+                        if not validate_text(new_value, column_name):
+                            return
+                    elif column_name == 'id продукту':
+                        if not validate_id(new_value, column_name):
+                            return
+                    elif column_name == 'id категорії':
+                        if not validate_id(new_value, column_name):
+                            return
+                    elif column_name == 'Опис':
+                        if not validate_text(new_value, column_name, allow_empty=True):
+                            return
+                elif tab_name == 'Продукти в магазині':
+                    if column_name == 'UPC':
+                        if not validate_id(new_value, column_name):
+                            return
+                    elif column_name == 'id продукту':
+                        if not validate_id(new_value, column_name):
+                            return
+                    elif column_name == 'ціна':
+                        if not validate_float(new_value, column_name, min_val=0.01):
+                            return
+                    elif column_name == 'наявність':
+                        if not validate_id(new_value, column_name):
+                            return
+                    elif column_name == 'акційнний товар':
+                        if not validate_promotional(new_value):
+                            return
+                elif tab_name == 'Категорії':
+                    if column_name == 'назва':
+                        if not validate_text(new_value, column_name):
+                            return
+                    elif column_name == 'номер категорії':
+                        if not validate_id(new_value, column_name):
+                            return
+                elif tab_name == 'Працівники':
+                    if column_name == 'id працівника':
+                        if not validate_id(new_value, column_name):
+                            return
+                    elif column_name in ['прізвище', 'імʼя', 'по-батькові', 'посада']:
+                        if not validate_text(new_value, column_name, allow_empty=(column_name == 'по-батькові')):
+                            return
+                    elif column_name == 'зарплата':
+                        if not validate_float(new_value, column_name, min_val=0.01):
+                            return
+                    elif column_name in ['дата народження', 'дата початку']:
+                        if not validate_date(new_value, column_name):
+                            return
+                        if column_name == 'дата народження':
+                            age = calculate_age(new_value)
+                            if age is not None and age < 18:
+                                messagebox.showerror("Помилка", "Працівник повинен бути старше 18 років.")
+                                return
+                    elif column_name == 'адреса':
+                        if not validate_address(new_value):
+                            return
+                    elif column_name == 'пароль':
+                        if not validate_password(new_value):
+                            return
+                elif tab_name == 'Постійні клієнти':
+                    if column_name == 'номер картки':
+                        if not validate_id(new_value, column_name):
+                            return
+                    elif column_name in ['прізвище', 'імʼя', 'по-батькові']:
+                        if not validate_text(new_value, column_name, allow_empty=(column_name == 'по-батькові')):
+                            return
+                    elif column_name == 'номер телефона':
+                        if not validate_phone(new_value):
+                            return
+                    elif column_name == 'адреса':
+                        if not validate_address(new_value):
+                            return
+                    elif column_name == 'індекс':
+                        if not validate_zip_code(new_value):
+                            return
+                    elif column_name == 'відсоток знижки':
+                        if not validate_float(new_value, column_name, min_val=0):
+                            return
+                        try:
+                            discount_val = float(new_value)
+                            if discount_val > 100:
+                                messagebox.showerror("Помилка", "Відсоток знижки не може перевищувати 100.")
+                                return
+                        except ValueError:
+                            messagebox.showerror("Помилка", "Відсоток знижки має бути числом.")
+                            return
 
-            table_name = TABLE_MAPPING[tab_name]
-            db_column = COLUMN_MAPPING[tab_name][column_name]
-            pk_column = COLUMN_MAPPING[tab_name][columns[0]]
-            pk_value = values[0]
+                values = list(tree.item(item, 'values'))
+                if tab_name == 'Працівники' and column_name == 'пароль':
+                    hashed_password = bcrypt.hashpw(new_value.encode('utf-8'), bcrypt.gensalt())
+                    new_value = hashed_password.decode('utf-8')
+                    values[column_index] = "********"  # Display placeholder in UI
+                else:
+                    values[column_index] = new_value
 
-            if tab_name == 'Продукти в магазині' and column_name == 'акційнний товар':
-                new_value = 1 if new_value.lower() in ['так', 'yes'] else 0
-                values[column_index] = 'Так' if new_value == 1 else 'Ні'
+                table_name = TABLE_MAPPING[tab_name]
+                db_column = COLUMN_MAPPING[tab_name][column_name]
+                pk_column = COLUMN_MAPPING[tab_name][columns[0]]
+                pk_value = values[0]
 
-            query = f"UPDATE \"{table_name}\" SET {db_column} = ? WHERE {pk_column} = ?"
+                if tab_name == 'Продукти в магазині' and column_name == 'акційнний товар':
+                    new_value = 1 if new_value.lower() in ['так', 'yes'] else 0
+                    values[column_index] = 'Так' if new_value == 1 else 'Ні'
 
-            self.db.begin_transaction()
-            try:
-                self.db.execute_query(query, (new_value, pk_value))
-                self.db.commit_transaction()
-            except Exception as e:
-                self.db.rollback_transaction()
-                messagebox.showerror("Помилка", f"Не вдалося оновити запис: {str(e)}")
-                return
+                query = f"UPDATE \"{table_name}\" SET {db_column} = ? WHERE {pk_column} = ?"
 
-            tree.item(item, values=values)
+                self.db.begin_transaction()
+                try:
+                    self.db.execute_query(query, (new_value, pk_value))
+                    self.db.commit_transaction()
+                except Exception as e:
+                    self.db.rollback_transaction()
+                    messagebox.showerror("Помилка", f"Не вдалося оновити запис: {str(e)}")
+                    return
 
+                tree.item(item, values=values)
+
+            # Оновлення відповідних treeview для інших вкладок
             if tab_name == 'Працівники':
                 self.update_employee_treeview()
             elif tab_name == 'Постійні клієнти':
@@ -767,7 +790,8 @@ def sell_products(self):
         if not info:
             return 0.0
         price, _ = info
-        promotional = self.db.fetch_filtered("SELECT promotional_product FROM Store_Product WHERE UPC = ?", (upc,))[0][0]
+        promotional = self.db.fetch_filtered("SELECT promotional_product FROM Store_Product WHERE UPC = ?", (upc,))[0][
+            0]
 
         if promotional:
             price = price * 0.80
