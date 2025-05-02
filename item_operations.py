@@ -14,6 +14,14 @@ TABLE_MAPPING = {
     'Чеки': 'Check'
 }
 
+PRIMARY_KEYS = {
+    'Продукти в магазині': ['UPC'],
+    'Працівники': ['id працівника'],
+    'Постійні клієнти': ['номер картки'],
+    'Продукти': ['id продукту'],
+    'Категорії': ['номер категорії'],
+    'Чеки': ['номер чеку']
+}
 # Mapping of Ukrainian labels to database column names for each tab
 COLUMN_MAPPING = {
     'Продукти': {
@@ -414,7 +422,6 @@ def delete_selected_item(self, tab_name):
             self.update_store_product_treeview()
 
 def on_cell_double_click(self, event, tab_name):
-    """Handle double-click on a cell to edit its value or view receipt details"""
     tree = self.treeviews[tab_name]
     region = tree.identify("region", event.x, event.y)
     if region != "cell":
@@ -439,7 +446,16 @@ def on_cell_double_click(self, event, tab_name):
         return
     column_name = columns[column_index]
 
+    # Перевірка на ключове поле
+    if tab_name in PRIMARY_KEYS and column_name in PRIMARY_KEYS[tab_name]:
+        messagebox.showwarning(
+            "Помилка",
+            f"Редагування поля '{column_name}' заборонено: це ключове поле."
+        )
+        return
+
     current_value = tree.item(item, 'values')[column_index]
+
 
     edit_dialog = tk.Toplevel(self.root)
     edit_dialog.title(f"Edit {column_name}")
