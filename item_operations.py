@@ -349,6 +349,9 @@ def add_new_item(self, tab_name):
             elif tab_name == 'Працівники':
                 if hasattr(self, 'update_employee_treeview'):
                     self.update_employee_treeview()
+            elif tab_name == 'Постійні клієнти':
+                if hasattr(self, 'update_cashier_customer_treeview'):
+                    self.update_cashier_customer_treeview()
             dialog.destroy()
             if tab_name == 'Категорії' and hasattr(self, 'update_category_treeview'):
                 self.update_category_treeview()
