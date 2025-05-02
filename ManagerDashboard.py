@@ -135,6 +135,25 @@ class ManagerDashboard:
         for item in items:
             tree.insert('', 'end', values=item)
 
+    def show_query_results(self, query, columns, tree):
+        """Execute the given SQL query and display results in the provided Treeview."""
+        # Clear existing Treeview content
+        tree.delete(*tree.get_children())
+        
+        # Update Treeview columns
+        tree['columns'] = columns
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=150)
+
+        # Execute the query
+        try:
+            results = self.db.fetch_filtered(query)
+            # Insert results into Treeview
+            for row in results:
+                tree.insert('', 'end', values=row)
+        except Exception as e:
+            messagebox.showerror("Помилка", f"Помилка виконання запиту: {str(e)}")
 
     def create_tab(self, notebook, tab_text, columns):
         # Create a frame for the tab
@@ -159,7 +178,7 @@ class ManagerDashboard:
                         JOIN Product p ON sp.id_product = p.id_product
                         WHERE e.role = 'cashier'
                         GROUP BY e.id_employee, e.surname, e.name
-                        HAVING COUNT(DISTINCT p.id_category) = (SELECT COUNT(*) FROM Category)
+                        HAVING COUNT(DISTINCT p.category_number) = (SELECT COUNT(*) FROM Category)
                     """,
                     'columns': ['ID працівника', 'Прізвище', "Ім'я"]
                 },
@@ -195,7 +214,7 @@ class ManagerDashboard:
                         FROM Sale s
                         JOIN Store_Product sp ON s.UPC = sp.UPC
                         JOIN Product p ON sp.id_product = p.id_product
-                        JOIN Category c ON p.id_category = c.category_number
+                        JOIN Category c ON p.category_number = c.category_number
                         GROUP BY c.category_name
                         ORDER BY total_sold DESC
                     """,
@@ -204,9 +223,9 @@ class ManagerDashboard:
                 {
                     'description': 'Клієнти з найвищими знижками',
                     'query': """
-                        SELECT c.card_number, c.surname, c.name, c.discount_percentage
-                        FROM Customer c
-                        ORDER BY c.discount_percentage DESC
+                        SELECT c.card_number, c.cust_surname, c.cust_name, c.percent
+                        FROM Customer_Card c
+                        ORDER BY c.percent DESC
                         LIMIT 5
                     """,
                     'columns': ['Номер картки', 'Прізвище', "Ім'я", 'Відсоток знижки']
