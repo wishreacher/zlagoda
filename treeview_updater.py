@@ -6,30 +6,26 @@ def update_cashier_product_treeview(self):
     tree = self.treeviews['Продукти']
     tree.delete(*tree.get_children())
 
-    name_search = self.cashier_product_name_var.get().strip()
+    name_search = self.cashier_product_name_var.get().strip().lower()
     category_search = self.cashier_product_category_var.get().strip()
 
-    # Updated query to include manufacturer
+    # Оновлений запит без умов у SQL
     query = "SELECT id_product, product_name, category_number, characteristics, manufacturer FROM Product"
-    conditions = []
     params = []
 
-    if name_search:
-        conditions.append("LOWER(product_name) LIKE ?")
-        params.append(f"%{name_search}%")
     if category_search:
-        conditions.append("category_number = ?")
+        query += " WHERE category_number = ?"
         params.append(category_search)
-
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
 
     query += " ORDER BY product_name ASC"
 
     data = self.db.fetch_filtered(query, params)
 
+    # Фільтрація за назвою продукту в Python
     for row in data:
-        tree.insert("", "end", values=row)
+        product_name = row[1].lower()  # Приводимо назву продукту до нижнього регістру
+        if not name_search or name_search in product_name:  # Фільтруємо в Python
+            tree.insert("", "end", values=row)
 
 def update_cashier_store_product_treeview(self):
     """Update the Store_Product Treeview with filters and sorting (Req 2, 12, 13, 14)"""
