@@ -316,7 +316,7 @@ def update_category_treeview(self):
     tree = self.treeviews['Категорії']
     tree.delete(*tree.get_children())
 
-    query = "SELECT category_name, category_number FROM Category"
+    query = "SELECT category_name, category_number FROM Category ORDER BY category_name"
     data = self.db.fetch_filtered(query)
 
     for row in data:

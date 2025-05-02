@@ -407,6 +407,7 @@ class ManagerDashboard:
             )
             today_button.pack(side='right', padx=(5, 0))
 
+
         if tab_text == 'Працівники':
             self.show_cashiers_only = False
 
@@ -498,7 +499,7 @@ class ManagerDashboard:
         elif tab_text == 'Чеки':
             self.update_receipt_treeview()
         else:
-            query = "SELECT category_name, category_number FROM Category"
+            query = "SELECT category_name, category_number FROM Category ORDER BY category_name"
             data = self.db.fetch_filtered(query)
             tree.delete(*tree.get_children())
             for row in data:
