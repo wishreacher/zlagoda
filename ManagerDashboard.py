@@ -63,7 +63,8 @@ class ManagerDashboard:
 
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill='both', expand=True)
-
+        self.no_sales_start_date_var = tk.StringVar()
+        self.no_sales_end_date_var = tk.StringVar()
         style = ttk.Style()
         style.configure("Treeview", font=("Space Mono", 12))
         style.configure("Treeview.Heading", font=("Space Mono", 12))
@@ -176,30 +177,41 @@ class ManagerDashboard:
                     'columns': ['Назва категорії', 'Номер категорії']
                 },
                 {
-                    'description': 'Касири з найбільшою сумою продажів за останній місяць',
+                    'description': 'Акційні товари по категоріям (кількість та середня ціна)',
                     'query': """
-                        SELECT e.surname, e.name, SUM(c.sum_total) as total_sales
-                        FROM Employee e
-                        JOIN [Check] c ON e.id_employee = c.id_employee
-                        WHERE c.print_date >= date('now', '-1 month')
-                        GROUP BY e.id_employee, e.surname, e.name
-                        ORDER BY total_sales DESC
+                        SELECT 
+                            c.category_name AS 'Категорія',
+                            COUNT(sp.UPC) AS 'Кількість акційних',
+                            ROUND(AVG(sp.selling_price), 2) AS 'Середня ціна'
+                        FROM Category c
+                        JOIN Product p ON c.category_number = p.category_number
+                        JOIN Store_Product sp ON p.id_product = sp.id_product
+                        WHERE sp.promotional_product = 1
+                        GROUP BY c.category_name
+                        ORDER BY COUNT(sp.UPC) DESC
                     """,
-                    'columns': ['Прізвище', "Ім'я", 'Сума продажів']
+                    'columns': ['Категорія', 'Кількість акційних', 'Середня ціна']
                 },
                 {
-                    'description': 'Категорії з найбільшою кількістю проданих товарів',
+                    'description': 'Категорії без продажів за період',
                     'query': """
-                        SELECT c.category_name, SUM(s.product_number) as total_sold
-                        FROM Sale s
-                        JOIN Store_Product sp ON s.UPC = sp.UPC
-                        JOIN Product p ON sp.id_product = p.id_product
-                        JOIN Category c ON p.category_number = c.category_number
-                        GROUP BY c.category_name
-                        ORDER BY total_sold DESC
+                        SELECT 
+                            c.category_name   AS 'Назва категорії',
+                            c.category_number AS 'Номер категорії'
+                        FROM Category c
+                        WHERE NOT EXISTS (
+                            SELECT 1
+                            FROM Product p
+                            JOIN Store_Product sp ON p.id_product = sp.id_product
+                            JOIN Sale s         ON sp.UPC     = s.UPC
+                            JOIN [Check] ch     ON s.check_number = ch.check_number
+                            WHERE p.category_number = c.category_number
+                              AND ch.print_date BETWEEN ? AND ?
+                        )
                     """,
-                    'columns': ['Назва категорії', 'Кількість проданих']
-                },
+                    'columns': ['Назва категорії', 'Номер категорії']
+                }
+                ,
                 {
                     'description': 'Клієнти з найвищими знижками',
                     'query': """
@@ -255,6 +267,23 @@ class ManagerDashboard:
                     anchor='w'
                 )
                 description_label.pack(side='left', fill='x', expand=True, padx=5)
+
+                if idx == 3:
+                    # Поле для початкової дати
+                    start_label = tk.Label(query_row_frame, text="Початкова дата (РРРР-ММ-ДД):",
+                                           font=("Space Mono", 12))
+                    start_label.pack(side='left', padx=(5, 0))
+                    start_entry = tk.Entry(query_row_frame, textvariable=self.no_sales_start_date_var,
+                                           font=("Space Mono", 12), width=12)
+                    start_entry.pack(side='left', padx=(5, 10))
+
+                    # Поле для кінцевої дати
+                    end_label = tk.Label(query_row_frame, text="Кінцева дата (РРРР-ММ-ДД):", font=("Space Mono", 12))
+                    end_label.pack(side='left', padx=(5, 0))
+                    end_entry = tk.Entry(query_row_frame, textvariable=self.no_sales_end_date_var,
+                                         font=("Space Mono", 12), width=12)
+                    end_entry.pack(side='left', padx=(5, 10))
+            
 
                 # Add input field for category number for the first query
                 if idx == 0:
