@@ -238,6 +238,8 @@ def update_store_product_treeview(self):
 
     if self.show_promotional_only:
         conditions.append("sp.promotional_product = 1")
+    elif self.show_non_promotional_only:
+        conditions.append("sp.promotional_product = 0")
 
     if conditions:
         query += " WHERE " + " AND ".join(conditions)

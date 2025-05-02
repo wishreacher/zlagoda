@@ -30,6 +30,7 @@ pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
 class ManagerDashboard:
     show_cashiers_only = False
     show_promotional_only = False
+    show_non_promotional_only = False
 
     update_employee_treeview = update_employee_treeview
     update_customer_treeview = update_customer_treeview
@@ -330,18 +331,37 @@ class ManagerDashboard:
 
             def toggle_promotional():
                 self.show_promotional_only = not self.show_promotional_only
+                self.show_non_promotional_only = False
                 toggle_button.config(
-                    text="Показати всі товари" if self.show_promotional_only else "Показати акційні товари"
+                    text="Показати всі товари" if self.show_promotional_only else "Продукти по акції"
                 )
+                non_promo_button.config(text="Продукти без акції")
                 self.update_store_product_treeview()
 
+            def toggle_non_promotional():
+                self.show_non_promotional_only = not self.show_non_promotional_only
+                self.show_promotional_only = False
+                non_promo_button.config(
+                    text="Показати всі товари" if self.show_non_promotional_only else "Продукти без акції"
+                )
+                toggle_button.config(text="Продукти по акції")
+                self.update_store_product_treeview()
+                
             toggle_button = tk.Button(
                 button_frame,
-                text="Показати акційні товари",
+                text="Продукти по акції",
                 font=("Space Mono", 12),
                 command=toggle_promotional
             )
             toggle_button.pack(side='left', padx=(5, 0))
+
+            non_promo_button = tk.Button(
+                button_frame, 
+                text="Продукти без акції", 
+                font=("Space Mono", 12), 
+                command=toggle_non_promotional
+            )
+            non_promo_button.pack(side='left', padx=(5, 0))
 
             sort_label = tk.Label(button_frame, text="Сортувати за:")
             sort_label.pack(side='left', padx=(10, 0))
