@@ -43,6 +43,7 @@ COLUMN_MAPPING = {
         'дата народження': 'date_of_birth',
         'дата початку': 'date_of_start',
         'адреса': 'address',
+        'телефон': 'phone_number',
         'пароль': 'password'
     },
     'Постійні клієнти': {
