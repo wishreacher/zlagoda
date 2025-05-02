@@ -212,26 +212,35 @@ class ManagerDashboard:
                 }
                 ,
                 {
-                    'description': 'Клієнти з найвищими знижками',
+                    'description': 'Середня ціна продажу по касирах за місяць',
                     'query': """
-                        SELECT c.card_number, c.cust_surname, c.cust_name, c.percent
-                        FROM Customer_Card c
-                        ORDER BY c.percent DESC
-                        LIMIT 5
+                        SELECT e.surname, e.name, AVG(s.selling_price) as avg_price
+                        FROM Employee e
+                        JOIN "Check" c ON e.id_employee = c.id_employee
+                        JOIN Sale s ON c.check_number = s.check_number
+                        WHERE strftime('%Y', c.print_date) = ? AND strftime('%m', c.print_date) = ?
+                        GROUP BY e.id_employee, e.surname, e.name
+                        HAVING COUNT(c.check_number) > 0
+                        ORDER BY avg_price DESC
                     """,
-                    'columns': ['Номер картки', 'Прізвище', "Ім'я", 'Відсоток знижки']
+                    'columns': ['Прізвище', "Ім'я", 'Середня ціна продажу']
                 },
                 {
-                    'description': 'Чеки з найбільшою кількістю товарів',
+                    'description': 'Клієнти, які не купували товари з категорії',
                     'query': """
-                        SELECT c.check_number, COUNT(s.UPC) as item_count, c.sum_total
-                        FROM [Check] c
-                        JOIN Sale s ON c.check_number = s.check_number
-                        GROUP BY c.check_number, c.sum_total
-                        ORDER BY item_count DESC
-                        LIMIT 5
+                        SELECT cc.card_number, cc.cust_surname, cc.cust_name
+                        FROM Customer_Card cc
+                        WHERE NOT EXISTS (
+                            SELECT 1 
+                            FROM "Check" ch 
+                            JOIN Sale s ON ch.check_number = s.check_number 
+                            JOIN Store_Product sp ON s.UPC = sp.UPC 
+                            JOIN Product p ON sp.id_product = p.id_product 
+                            WHERE p.category_number = ? AND ch.card_number = cc.card_number
+                        )
                     """,
-                    'columns': ['Номер чеку', 'Кількість товарів', 'Загальна сума']
+                    'columns': ['Номер картки', 'Прізвище', "Ім'я"],
+                    'param_input': True
                 }
             ]
 
@@ -254,6 +263,11 @@ class ManagerDashboard:
 
             tree_frame.grid_rowconfigure(0, weight=1)
             tree_frame.grid_columnconfigure(0, weight=1)
+
+            self.year_var = tk.StringVar()
+            self.month_var = tk.StringVar()
+
+            self.category_number_var6 = tk.StringVar()
 
             for idx, query_info in enumerate(queries):
                 query_row_frame = tk.Frame(query_frame)
@@ -292,7 +306,7 @@ class ManagerDashboard:
                                               font=("Space Mono", 12), width=10)
                     category_entry.pack(side='left', padx=(5, 5))
 
-                    show_button3 = tk.Button(  # Унікальна назва
+                    show_button3 = tk.Button(  
                         query_row_frame,
                         text="Показати",
                         font=("Space Mono", 12),
@@ -300,6 +314,48 @@ class ManagerDashboard:
                         self.show_query_results(q, c, tree, (self.category_number_var3.get(),))
                     )
                     show_button3.pack(side='right', padx=5)
+
+                elif idx == 4:
+                    year_label = tk.Label(query_row_frame, text="Рік (YYYY):", font=("Space Mono", 12))
+                    year_label.pack(side='left', padx=(5, 0))
+                    year_entry = tk.Entry(query_row_frame, textvariable=self.year_var,
+                                          font=("Space Mono", 12), width=6)
+                    year_entry.pack(side='left', padx=(5, 5))
+                    year_entry.insert(0, "2025")  # Значення за замовчуванням
+
+                    month_label = tk.Label(query_row_frame, text="Місяць (MM):", font=("Space Mono", 12))
+                    month_label.pack(side='left', padx=(5, 0))
+                    month_entry = tk.Entry(query_row_frame, textvariable=self.month_var,
+                                           font=("Space Mono", 12), width=4)
+                    month_entry.pack(side='left', padx=(5, 5))
+                    month_entry.insert(0, "05")  # Значення за замовчуванням
+
+                    show_button4 = tk.Button(
+                        query_row_frame,
+                        text="Показати",
+                        font=("Space Mono", 12),
+                        command=lambda q=query_info['query'], c=query_info['columns']:
+                        self.show_query_results(q, c, tree, (self.year_var.get(), self.month_var.get()))
+                    )
+                    show_button4.pack(side='right', padx=5)
+
+                # Обробка шостого запиту (індекс 5)
+                elif idx == 5:
+                    category_label = tk.Label(query_row_frame, text="Номер категорії:", font=("Space Mono", 12))
+                    category_label.pack(side='left', padx=(5, 0))
+                    category_entry = tk.Entry(query_row_frame, textvariable=self.category_number_var6,
+                                              font=("Space Mono", 12), width=10)
+                    category_entry.pack(side='left', padx=(5, 5))
+                    category_entry.insert(0, "1")  
+
+                    show_button6 = tk.Button(
+                        query_row_frame,
+                        text="Показати",
+                        font=("Space Mono", 12),
+                        command=lambda q=query_info['query'], c=query_info['columns']:
+                        self.show_query_results(q, c, tree, (self.category_number_var6.get(),))
+                    )
+                    show_button6.pack(side='right', padx=5)
 
                 # Інші запити (без параметрів)
                 else:
