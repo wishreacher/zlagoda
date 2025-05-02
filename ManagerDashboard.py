@@ -232,7 +232,7 @@ class ManagerDashboard:
             # Cashier filter
             cashier_label = tk.Label(button_frame, text="Касир:")
             cashier_label.pack(side='left', padx=(5, 0))
-            cashier_data = self.db.fetch_filtered("SELECT id_employee, surname, name FROM Employee WHERE role = 'Cashier'")
+            cashier_data = self.db.fetch_filtered("SELECT id_employee, surname, name FROM Employee WHERE role = 'cashier'")
             cashier_options = ["Всі касири"] + [f"{row[1]} {row[2]}" for row in cashier_data]
             cashier_ids = ["Всі касири"] + [row[0] for row in cashier_data]
             self.cashier_mapping = dict(zip(cashier_options, cashier_ids))  # Map display names to IDs
