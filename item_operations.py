@@ -350,7 +350,10 @@ def add_new_item(self, tab_name):
                 if hasattr(self, 'update_employee_treeview'):
                     self.update_employee_treeview()
             dialog.destroy()
+            if tab_name == 'Категорії' and hasattr(self, 'update_category_treeview'):
+                self.update_category_treeview()
             messagebox.showinfo("Успіх", f"Дані успішно додані до {tab_name}!")
+
         except Exception as e:
             self.db.rollback_transaction()
             messagebox.showerror("Помилка", f"Не вдалося додати запис: {str(e)}")

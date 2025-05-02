@@ -8,7 +8,8 @@ from treeview_updater import (
     update_product_treeview,
     update_store_product_treeview,
     update_receipt_treeview,
-    update_receipt_reports
+    update_receipt_reports,
+    update_category_treeview
 )
 from item_operations import add_new_item, delete_selected_item, on_cell_double_click, show_receipt_items
 from reportlab.lib.pagesizes import A4
@@ -41,6 +42,7 @@ class ManagerDashboard:
     delete_selected_item = delete_selected_item
     on_cell_double_click = on_cell_double_click
     show_receipt_items = show_receipt_items
+    update_category_treeview = update_category_treeview
 
     def __init__(self, root, username):
         self.root = root
@@ -112,6 +114,8 @@ class ManagerDashboard:
 
         # Bind the window close event to properly close the database connection
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+
 
     def on_closing(self):
         """Handle window closing to ensure the database connection is closed"""

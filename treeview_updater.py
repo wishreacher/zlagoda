@@ -312,6 +312,19 @@ def update_receipt_treeview(self):
     # Update the reports after updating the treeview
     self.update_receipt_reports()
 
+
+def update_category_treeview(self):
+    """Update the Category Treeview"""
+    tree = self.treeviews['Категорії']
+    tree.delete(*tree.get_children())
+
+    query = "SELECT category_name, category_number FROM Category"
+    data = self.db.fetch_filtered(query)
+
+    for row in data:
+        tree.insert("", "end", values=row)
+
+
 def update_receipt_reports(self):
     """Update the sales and quantity reports in the Check tab"""
     cashier_display = self.receipt_cashier_var.get()
