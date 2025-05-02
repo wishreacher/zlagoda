@@ -340,93 +340,104 @@ def update_receipt_reports(self):
     except ValueError:
         start, end = None, None
 
-    # Calculate total sales for the selected cashier
-    query_specific = '''
-        SELECT SUM(c.sum_total)
-        FROM "Check" c
-        JOIN Employee e ON c.id_employee = e.id_employee
-        JOIN Sale s ON c.check_number = s.check_number
-    '''
-    conditions_specific = []
-    params_specific = []
-
-    if cashier_id != "Всі касири":
-        conditions_specific.append("c.id_employee = ?")
-        params_specific.append(cashier_id)
-
-    if upc:
-        conditions_specific.append('s."UPC" = ?')
-        params_specific.append(upc)
-
+    # Conditions for date range
+    date_conditions = []
+    date_params = []
     if start and end:
-        conditions_specific.append("c.print_date BETWEEN ? AND ?")
-        params_specific.extend([start_date + " 00:00:00", end_date + " 23:59:59"])
+        date_conditions.append("c.print_date BETWEEN ? AND ?")
+        date_params.extend([start_date + " 00:00:00", end_date + " 23:59:59"])
     elif start:
-        conditions_specific.append("c.print_date >= ?")
-        params_specific.append(start_date + " 00:00:00")
+        date_conditions.append("c.print_date >= ?")
+        date_params.append(start_date + " 00:00:00")
     elif end:
-        conditions_specific.append("c.print_date <= ?")
-        params_specific.append(end_date + " 23:59:59")
-
-    if conditions_specific:
-        query_specific += " WHERE " + " AND ".join(conditions_specific)
-
-    result = self.db.fetch_filtered(query_specific, params_specific)
-    total_specific = result[0][0] or 0.0
-    self.total_sales_specific_label.config(text=f"Сума (вибраний касир): {total_specific:.2f}")
-
-    # Calculate total sales for all cashiers
-    query_all = '''
-        SELECT SUM(c.sum_total)
-        FROM "Check" c
-    '''
-    conditions_all = []
-    params_all = []
+        date_conditions.append("c.print_date <= ?")
+        date_params.append(end_date + " 23:59:59")
 
     if upc:
-        conditions_specific.append('s."UPC" = ?')
-        params_all.append(upc)
+        # Calculate total sales for the selected UPC and selected cashier
+        query_specific = '''
+            SELECT SUM(s.selling_price * s.product_number)
+            FROM Sale s
+            JOIN "Check" c ON s.check_number = c.check_number
+            WHERE s.UPC = ?
+        '''
+        params_specific = [upc]
+        if cashier_id != "Всі касири":
+            query_specific += " AND c.id_employee = ?"
+            params_specific.append(cashier_id)
+        if date_conditions:
+            query_specific += " AND " + " AND ".join(date_conditions)
+            params_specific.extend(date_params)
 
-    if start and end:
-        conditions_all.append("c.print_date BETWEEN ? AND ?")
-        params_all.extend([start_date + " 00:00:00", end_date + " 23:59:59"])
-    elif start:
-        conditions_all.append("c.print_date >= ?")
-        params_all.append(start_date + " 00:00:00")
-    elif end:
-        conditions_all.append("c.print_date <= ?")
-        params_all.append(end_date + " 23:59:59")
+        result = self.db.fetch_filtered(query_specific, params_specific)
+        total_specific = result[0][0] or 0.0
+        self.total_sales_specific_label.config(text=f"Сума (вибраний касир): {total_specific:.2f}")
 
-    if conditions_all:
-        query_all += " WHERE " + " AND ".join(conditions_all)
+        # Calculate total sales for the selected UPC for all cashiers
+        query_all = '''
+            SELECT SUM(s.selling_price * s.product_number)
+            FROM Sale s
+            JOIN "Check" c ON s.check_number = c.check_number
+            WHERE s.UPC = ?
+        '''
+        params_all = [upc]
+        if date_conditions:
+            query_all += " AND " + " AND ".join(date_conditions)
+            params_all.extend(date_params)
 
-    result = self.db.fetch_filtered(query_all, params_all)
-    total_all = result[0][0] or 0.0
-    self.total_sales_all_label.config(text=f"Сума (всі касири): {total_all:.2f}")
+        result = self.db.fetch_filtered(query_all, params_all)
+        total_all = result[0][0] or 0.0
+        self.total_sales_all_label.config(text=f"Сума (всі касири): {total_all:.2f}")
 
-    # Calculate total quantity for the selected UPC
-    if upc:
+        # Calculate total quantity for the selected UPC
         query_quantity = '''
             SELECT SUM(s.product_number)
             FROM Sale s
             JOIN "Check" c ON s.check_number = c.check_number
+            WHERE s.UPC = ?
         '''
-        conditions_quantity = ["s.UPC = ?"]
         params_quantity = [upc]
+        if date_conditions:
+            query_quantity += " AND " + " AND ".join(date_conditions)
+            params_quantity.extend(date_params)
 
-        if start and end:
-            conditions_quantity.append("c.print_date BETWEEN ? AND ?")
-            params_quantity.extend([start_date + " 00:00:00", end_date + " 23:59:59"])
-        elif start:
-            conditions_quantity.append("c.print_date >= ?")
-            params_quantity.append(start_date + " 00:00:00")
-        elif end:
-            conditions_quantity.append("c.print_date <= ?")
-            params_quantity.append(end_date + " 23:59:59")
-
-        query_quantity += " WHERE " + " AND ".join(conditions_quantity)
         result = self.db.fetch_filtered(query_quantity, params_quantity)
         total_quantity = result[0][0] or 0
         self.total_quantity_label.config(text=f"Кількість товару ({upc}): {total_quantity}")
     else:
+        # No UPC selected, calculate total sales from checks
+        # For selected cashier
+        query_specific = '''
+            SELECT SUM(c.sum_total)
+            FROM "Check" c
+            WHERE 1=1
+        '''
+        params_specific = []
+        if cashier_id != "Всі касири":
+            query_specific += " AND c.id_employee = ?"
+            params_specific.append(cashier_id)
+        if date_conditions:
+            query_specific += " AND " + " AND ".join(date_conditions)
+            params_specific.extend(date_params)
+
+        result = self.db.fetch_filtered(query_specific, params_specific)
+        total_specific = result[0][0] or 0.0
+        self.total_sales_specific_label.config(text=f"Сума (вибраний касир): {total_specific:.2f}")
+
+        # For all cashiers
+        query_all = '''
+            SELECT SUM(c.sum_total)
+            FROM "Check" c
+            WHERE 1=1
+        '''
+        params_all = []
+        if date_conditions:
+            query_all += " AND " + " AND ".join(date_conditions)
+            params_all.extend(date_params)
+
+        result = self.db.fetch_filtered(query_all, params_all)
+        total_all = result[0][0] or 0.0
+        self.total_sales_all_label.config(text=f"Сума (всі касири): {total_all:.2f}")
+
+        # No UPC selected, so no quantity to display
         self.total_quantity_label.config(text="Кількість товару (UPC не вибрано): 0")
