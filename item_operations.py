@@ -36,7 +36,8 @@ COLUMN_MAPPING = {
         'id продукту': 'id_product',
         'ціна': 'selling_price',
         'наявність': 'products_number',
-        'акційнний товар': 'promotional_product'
+        'акційнний товар': 'promotional_product',
+        'назва': 'product_name',
     },
     'Категорії': {
         'назва': 'category_name',
@@ -189,6 +190,8 @@ def add_new_item(self, tab_name):
     """Handle adding a new item to the specified tab with password hashing for employees"""
     columns = self.entity_columns[tab_name]
     values = {}
+    # Exclude 'назва' from the dialog for 'Продукти в магазині'
+    dialog_columns = [col for col in columns if col != 'назва' or tab_name not in ['Продукти в магазині', 'Продукти у магазині']]
 
     dialog = tk.Toplevel(self.root)
     dialog.title(f"Додати новий запис - {tab_name}")
@@ -196,7 +199,7 @@ def add_new_item(self, tab_name):
     dialog.transient(self.root)
     dialog.grab_set()
 
-    for i, col in enumerate(columns):
+    for i, col in enumerate(dialog_columns):
         label = tk.Label(dialog, text=f"{col}:", anchor="w")
         label.grid(row=i, column=0, padx=10, pady=5, sticky="w")
         if tab_name == 'Працівники' and col == 'пароль':
@@ -212,8 +215,8 @@ def add_new_item(self, tab_name):
         processed_values = []
         db_columns = []
 
-        # CHANGE: Validate inputs based on tab
-        for col, val in zip(columns, new_values):
+        # Validate inputs based on tab
+        for col, val in zip(dialog_columns, new_values):
             if tab_name == 'Продукти':
                 if col == 'назва':
                     if not validate_text(val, col):
@@ -227,12 +230,17 @@ def add_new_item(self, tab_name):
                 elif col == 'Опис':
                     if not validate_text(val, col, allow_empty=True):
                         return
-            elif tab_name == 'Продукти в магазині':
+            elif tab_name in ['Продукти в магазині', 'Продукти у магазині']:
                 if col == 'UPC':
                     if not validate_id(val, col):
                         return
                 elif col == 'id продукту':
                     if not validate_id(val, col):
+                        return
+                    # Validate that the product ID exists in the Product table
+                    product = self.db.fetch_filtered("SELECT product_name FROM Product WHERE id_product = ?", (val,))
+                    if not product:
+                        messagebox.showerror("Помилка", f"Продукт з ID '{val}' не знайдено.")
                         return
                 elif col == 'ціна':
                     if not validate_float(val, col, min_val=0.01):
@@ -301,49 +309,37 @@ def add_new_item(self, tab_name):
                     except ValueError:
                         messagebox.showerror("Помилка", "Відсоток знижки має бути числом.")
                         return
+
+        # Process values for insertion
         if tab_name == 'Працівники':
-            for col, val in zip(columns, new_values):
+            for col, val in zip(dialog_columns, new_values):
                 if col == 'пароль':
                     hashed_password = bcrypt.hashpw(val.encode('utf-8'), bcrypt.gensalt())
                     processed_values.append(hashed_password.decode('utf-8'))
                 else:
                     processed_values.append(val)
-
-            db_columns = [COLUMN_MAPPING[tab_name][col] for col in columns]
+            db_columns = [COLUMN_MAPPING[tab_name][col] for col in dialog_columns]
 
         # Спеціальна обробка для "Продукти в магазині"
-        elif tab_name in ['Продукти у магазині', 'Продукти в магазині']:
-            product_name = values.get('назва', tk.Entry(dialog)).get()
-            if product_name and not validate_text(product_name, 'назва'):
-                messagebox.showerror("Помилка", "Поле 'назва' є обов’язковим.")
-                return
+        elif tab_name in ['Продукти в магазині', 'Продукти у магазині']:
+            id_product = values['id продукту'].get()
+            # Fetch product name using id_product for display purposes
+            product = self.db.fetch_filtered("SELECT product_name FROM Product WHERE id_product = ?", (id_product,))
+            product_name = product[0][0]
 
-            product = self.db.fetch_filtered("SELECT id_product FROM Product WHERE product_name = ?", (product_name,))
-            if product_name and not product:
-                messagebox.showerror("Помилка", f"Продукт з назвою '{product_name}' не знайдено.")
-                return
-            id_product = product[0][0] if product else None
-
-            columns_to_insert = [col for col in columns if col != 'назва']
-            db_columns = []
+            # Prepare values for database insertion (exclude product_name)
+            insert_columns = [col for col in columns if col != 'назва']
             processed_values = []
-            for col in columns_to_insert:
-                if col in COLUMN_MAPPING[tab_name]:
-                    db_columns.append(COLUMN_MAPPING[tab_name][col])
+            for col in insert_columns:
+                if col == 'акційнний товар':
                     val = values[col].get()
-                    if col == 'акційнний товар':
-                        processed_values.append(1 if val.lower() in ['так', 'yes'] else 0)
-                    elif col == 'id продукту':
-                        processed_values.append(id_product)
-                    else:
-                        processed_values.append(val)
+                    processed_values.append(1 if val.lower() in ['так', 'yes'] else 0)
                 else:
-                    messagebox.showerror("Помилка", f"Невідоме поле: {col}")
-                    return
-        # Для інших вкладок
+                    processed_values.append(values[col].get())
+            db_columns = [COLUMN_MAPPING[tab_name][col] for col in insert_columns]
         else:
             processed_values = new_values
-            db_columns = [COLUMN_MAPPING[tab_name][col] for col in columns]
+            db_columns = [COLUMN_MAPPING[tab_name][col] for col in dialog_columns]
 
         table_name = TABLE_MAPPING[tab_name]
         placeholders = ', '.join(['?' for _ in processed_values])
@@ -353,9 +349,12 @@ def add_new_item(self, tab_name):
         try:
             self.db.execute_query(query, tuple(processed_values))
             self.db.commit_transaction()
-            if tab_name in ['Продукти у магазині', 'Продукти в магазині']:
+            # Update Treeview with the full row including product_name
+            if tab_name in ['Продукти в магазині', 'Продукти у магазині']:
                 if hasattr(self, 'update_cashier_store_product_treeview'):
                     self.update_cashier_store_product_treeview()
+                elif hasattr(self, 'update_store_product_treeview'):
+                    self.update_store_product_treeview()
             elif tab_name == 'Працівники':
                 if hasattr(self, 'update_employee_treeview'):
                     self.update_employee_treeview()
@@ -375,7 +374,7 @@ def add_new_item(self, tab_name):
             messagebox.showerror("Помилка", f"Не вдалося додати запис: {str(e)}")
 
     save_button = tk.Button(dialog, text="Зберегти", font=("Space Mono", 12), command=save_item)
-    save_button.grid(row=len(columns), column=0, columnspan=2, pady=20)
+    save_button.grid(row=len(dialog_columns), column=0, columnspan=2, pady=20)
 
     dialog.update_idletasks()
     x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (dialog.winfo_width() // 2)
