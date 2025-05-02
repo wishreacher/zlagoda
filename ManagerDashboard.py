@@ -63,8 +63,8 @@ class ManagerDashboard:
 
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill='both', expand=True)
-        self.no_sales_start_date_var = tk.StringVar()
-        self.no_sales_end_date_var = tk.StringVar()
+        self.category_number_var0 = tk.StringVar()
+        self.category_number_var3 = tk.StringVar()
         style = ttk.Style()
         style.configure("Treeview", font=("Space Mono", 12))
         style.configure("Treeview.Heading", font=("Space Mono", 12))
@@ -193,23 +193,22 @@ class ManagerDashboard:
                     'columns': ['Категорія', 'Кількість акційних', 'Середня ціна']
                 },
                 {
-                    'description': 'Категорії без продажів за період',
+                    'description': 'Касири, які не продавали товари з категорії',
                     'query': """
-                        SELECT 
-                            c.category_name   AS 'Назва категорії',
-                            c.category_number AS 'Номер категорії'
-                        FROM Category c
-                        WHERE NOT EXISTS (
-                            SELECT 1
-                            FROM Product p
-                            JOIN Store_Product sp ON p.id_product = sp.id_product
-                            JOIN Sale s         ON sp.UPC     = s.UPC
-                            JOIN [Check] ch     ON s.check_number = ch.check_number
-                            WHERE p.category_number = c.category_number
-                              AND ch.print_date BETWEEN ? AND ?
+                        SELECT e.id_employee, e.surname, e.name 
+                        FROM Employee e 
+                        WHERE e.role = 'cashier' 
+                        AND NOT EXISTS (
+                            SELECT 1 
+                            FROM [Check] ch 
+                            JOIN Sale s ON ch.check_number = s.check_number 
+                            JOIN Store_Product sp ON s.UPC = sp.UPC 
+                            JOIN Product p ON sp.id_product = p.id_product 
+                            WHERE p.category_number = ? AND ch.id_employee = e.id_employee
                         )
                     """,
-                    'columns': ['Назва категорії', 'Номер категорії']
+                    'columns': ['ID касира', 'Прізвище', "Ім'я"],
+                    'param_input': True
                 }
                 ,
                 {
@@ -268,46 +267,50 @@ class ManagerDashboard:
                 )
                 description_label.pack(side='left', fill='x', expand=True, padx=5)
 
-                if idx == 3:
-                    # Поле для початкової дати
-                    start_label = tk.Label(query_row_frame, text="Початкова дата (РРРР-ММ-ДД):",
-                                           font=("Space Mono", 12))
-                    start_label.pack(side='left', padx=(5, 0))
-                    start_entry = tk.Entry(query_row_frame, textvariable=self.no_sales_start_date_var,
-                                           font=("Space Mono", 12), width=12)
-                    start_entry.pack(side='left', padx=(5, 10))
-
-                    # Поле для кінцевої дати
-                    end_label = tk.Label(query_row_frame, text="Кінцева дата (РРРР-ММ-ДД):", font=("Space Mono", 12))
-                    end_label.pack(side='left', padx=(5, 0))
-                    end_entry = tk.Entry(query_row_frame, textvariable=self.no_sales_end_date_var,
-                                         font=("Space Mono", 12), width=12)
-                    end_entry.pack(side='left', padx=(5, 10))
-            
-
-                # Add input field for category number for the first query
+                # Обробка першого запиту (індекс 0)
                 if idx == 0:
                     category_label = tk.Label(query_row_frame, text="Номер категорії:", font=("Space Mono", 12))
                     category_label.pack(side='left', padx=(5, 0))
-                    category_entry = tk.Entry(query_row_frame, textvariable=self.category_number_var, font=("Space Mono", 12), width=10)
+                    category_entry = tk.Entry(query_row_frame, textvariable=self.category_number_var0,
+                                              font=("Space Mono", 12), width=10)
                     category_entry.pack(side='left', padx=(5, 5))
 
-                    show_button = tk.Button(
+                    show_button0 = tk.Button(  # Унікальна назва
                         query_row_frame,
                         text="Показати",
                         font=("Space Mono", 12),
-                        command=lambda q=query_info['query'], c=query_info['columns']: self.show_query_results(
-                            q, c, tree, params=(self.category_number_var.get(),) if self.category_number_var.get() else ()
-                        )
+                        command=lambda q=query_info['query'], c=query_info['columns']:
+                        self.show_query_results(q, c, tree, (self.category_number_var0.get(),))
                     )
+                    show_button0.pack(side='right', padx=5)
+
+                # Обробка третього запиту (індекс 3)
+                elif idx == 3:
+                    category_label = tk.Label(query_row_frame, text="Номер категорії:", font=("Space Mono", 12))
+                    category_label.pack(side='left', padx=(5, 0))
+                    category_entry = tk.Entry(query_row_frame, textvariable=self.category_number_var3,
+                                              font=("Space Mono", 12), width=10)
+                    category_entry.pack(side='left', padx=(5, 5))
+
+                    show_button3 = tk.Button(  # Унікальна назва
+                        query_row_frame,
+                        text="Показати",
+                        font=("Space Mono", 12),
+                        command=lambda q=query_info['query'], c=query_info['columns']:
+                        self.show_query_results(q, c, tree, (self.category_number_var3.get(),))
+                    )
+                    show_button3.pack(side='right', padx=5)
+
+                # Інші запити (без параметрів)
                 else:
                     show_button = tk.Button(
                         query_row_frame,
                         text="Показати",
                         font=("Space Mono", 12),
-                        command=lambda q=query_info['query'], c=query_info['columns']: self.show_query_results(q, c, tree)
+                        command=lambda q=query_info['query'], c=query_info['columns']:
+                        self.show_query_results(q, c, tree)
                     )
-                show_button.pack(side='right', padx=5)
+                    show_button.pack(side='right', padx=5)
 
             return
 
