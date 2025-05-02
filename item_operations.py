@@ -365,7 +365,7 @@ def add_new_item(self, tab_name):
                 elif hasattr(self, 'update_customer_treeview'):
                     self.update_customer_treeview()
                     self.root.update_idletasks()
-                    
+
             elif tab_name == 'Продукти':
                 if hasattr(self, 'update_product_treeview'):
                     self.update_product_treeview()

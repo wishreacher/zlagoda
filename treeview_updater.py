@@ -266,7 +266,7 @@ def update_receipt_treeview(self):
     today = date.today().strftime('%Y-%m-%d')
 
     if not start_date and not end_date:
-        start_date = (date.today() - timedelta(days=30)).strftime('%Y-%m-%d')  # За останні 30 днів
+        start_date = (date.today() - timedelta(days=1095)).strftime('%Y-%m-%d')  # За останні 30 днів
         end_date = today
 
     try:
