@@ -399,6 +399,18 @@ def delete_selected_item(self, tab_name):
     confirm = messagebox.askyesno("Підтвердіть видалення", f"Ви хочете видалити цей запис?\n\n{item_values}")
 
     if confirm:
+        if tab_name == 'Категорії':
+            category_number = item_values[1]  # Номер категорії знаходиться у другому стовпці
+            # Перевірка наявності продуктів у категорії
+            check_products_query = "SELECT COUNT(*) FROM Product WHERE category_number = ?"
+            product_count = self.db.fetch_filtered(check_products_query, (category_number,))[0][0]
+
+            if product_count > 0:
+                messagebox.showerror(
+                    "Помилка",
+                    f"Неможливо видалити категорію. Знайдено {product_count} товарів, що належать до цієї категорії."
+                )
+                return
         table_name = TABLE_MAPPING[tab_name]
         pk_column = COLUMN_MAPPING[tab_name][self.entity_columns[tab_name][0]]
         pk_value = item_values[0]
